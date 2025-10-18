@@ -7,7 +7,14 @@ import uploadRoutes from './routes/upload';
 import componentRoutes from './routes/components';
 import { BodyType } from './models/interfaces';
 
-const fastify = Fastify({ logger: true });
+const fastify = Fastify({
+  logger: {
+    level: 'debug',
+    transport: {
+      target: 'pino-pretty', // formatted console output
+    },
+  },
+});
 
 // Register
 fastify.register(fastifyFirebase, firebasePrivateKeyJson);
@@ -15,19 +22,20 @@ fastify.register(authRoutes);
 fastify.register(uploadRoutes);
 fastify.register(componentRoutes);
 
-
 // Authentication hook
 fastify.addHook(
   'onRequest',
   async (request: FastifyRequest<{ Body: BodyType }>, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
     const firebase = request.server.firebase;
-
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       // Missing or invalid Authorization header
       request.body = { ...request.body, loggedIn: false };
+      request.log.info(`Authentication Hook: Auth header missing or does not start with 'Bearer '; not logged in`);
       return;
     }
+
+    request.log.info(`Verifying idToken`);
 
     const idToken = authHeader.split('Bearer ')[1];
 
@@ -39,6 +47,8 @@ fastify.addHook(
           .auth()
           .createSessionCookie(idToken, { expiresIn: MONTH_IN_MILLISECONDS });
         request.headers.cookie = cookie;
+        request.headers.uid = decodedToken.uid;
+        request.log.info(`request.headers.uid: ${request.headers.uid}`);
       }
     } catch (error) {
       request.log.warn(`Firebase ID Token verification failed ${error}`);
