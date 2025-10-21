@@ -11,12 +11,11 @@ const fastify = Fastify({
   logger: {
     level: 'debug',
     transport: {
-      target: 'pino-pretty', // formatted console output
+      target: 'pino-pretty',
     },
   },
 });
 
-// Register
 fastify.register(fastifyFirebase, firebasePrivateKeyJson);
 fastify.register(authRoutes);
 fastify.register(uploadRoutes);
@@ -29,26 +28,20 @@ fastify.addHook(
     const authHeader = request.headers.authorization;
     const firebase = request.server.firebase;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      // Missing or invalid Authorization header
       request.body = { ...request.body, loggedIn: false };
-      request.log.info(`Authentication Hook: Auth header missing or does not start with 'Bearer '; not logged in`);
+      request.log.warn(`AuthHook: Auth header missing or invalid`);
       return;
     }
-
-    request.log.info(`Verifying idToken`);
 
     const idToken = authHeader.split('Bearer ')[1];
 
     try {
       const decodedToken = await firebase.auth().verifyIdToken(idToken);
       if (decodedToken.uid) {
-        const MONTH_IN_MILLISECONDS = 2629746000;
-        const cookie = await firebase
-          .auth()
-          .createSessionCookie(idToken, { expiresIn: MONTH_IN_MILLISECONDS });
+        const expiresIn = 1209600000; // 2 weeks (in milliseconds), Firebase limit
+        const cookie = await firebase.auth().createSessionCookie(idToken, { expiresIn });
         request.headers.cookie = cookie;
         request.headers.uid = decodedToken.uid;
-        request.log.info(`request.headers.uid: ${request.headers.uid}`);
       }
     } catch (error) {
       request.log.warn(`Firebase ID Token verification failed ${error}`);

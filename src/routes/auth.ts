@@ -1,5 +1,4 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { isStringObject } from 'util/types';
 import { BodyType } from '../models/interfaces';
 
 /**
@@ -7,7 +6,7 @@ import { BodyType } from '../models/interfaces';
  * @param {FastifyInstance} fastify  Encapsulated Fastify Instance
  * @param {Object} options plugin options, refer to https://fastify.dev/docs/latest/Reference/Plugins/#plugin-options
  */
-async function authRoutes(fastify: FastifyInstance, options: Object) {
+async function authRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/session',
     async (request: FastifyRequest<{ Body: BodyType }>, reply: FastifyReply) => {
@@ -18,18 +17,13 @@ async function authRoutes(fastify: FastifyInstance, options: Object) {
   fastify.post(
     '/create-user',
     async (request: FastifyRequest<{ Body: BodyType }>, reply: FastifyReply) => {
-      const replyPayload = {
-        message: '',
-        value: {},
-      };
+      const replyPayload = { message: '', value: {} };
       const { auth } = request.server.firebase;
       const { email, password } = request.body;
       try {
-        request.log.info('Attempting to create user');
         const userRecord = await auth().createUser({ email, password });
-        const token = await auth().createCustomToken(userRecord.uid);
         replyPayload.message = 'Successfully created new user';
-        replyPayload.value = {...userRecord, token};
+        replyPayload.value = userRecord;
       } catch (error) {
         replyPayload.message = 'Error creating new user';
         replyPayload.value = JSON.stringify(error);
@@ -41,16 +35,17 @@ async function authRoutes(fastify: FastifyInstance, options: Object) {
   fastify.post(
     '/update-user',
     async (request: FastifyRequest<{ Body: BodyType }>, reply: FastifyReply) => {
-      const replyPayload = {
-        message: '',
-        value: {},
-      };
+      const replyPayload = { message: '', value: {} };
       const { auth } = request.server.firebase;
-      const { uid, updateRequest } = request.body;
+      const { updateRequest } = request.body;
+      const uid = request.headers.uid;
       try {
-        request.log.info('Attempting to update user');
-        await auth().updateUser(uid, updateRequest);
-        replyPayload.message = 'Successfully updated user';
+        if (typeof uid == 'string') {
+          await auth().updateUser(uid, updateRequest);
+          replyPayload.message = 'Successfully updated user';
+        } else {
+          throw TypeError(`typeof request.headers.uid must be string, not ${typeof uid}`);
+        }
       } catch (error) {
         replyPayload.message = 'Error updating user';
         replyPayload.value = JSON.stringify(error);
@@ -62,18 +57,20 @@ async function authRoutes(fastify: FastifyInstance, options: Object) {
   fastify.post(
     '/delete-user',
     async (request: FastifyRequest<{ Body: BodyType }>, reply: FastifyReply) => {
-      const replyPayload = {
-        message: '',
-        value: {},
-      };
+      const replyPayload = { message: '', value: {} };
+
       const { auth } = request.server.firebase;
-      const { uid } = request.body;
+      const uid = request.headers.uid;
       try {
-        request.log.info('Attempting to delete user');
-        await auth().deleteUser(uid);
+        if (typeof uid == 'string') {
+          await auth().deleteUser(uid);
+        } else {
+          throw TypeError(`typeof request.headers.uid must be string, not ${typeof uid}`);
+        }
         replyPayload.message = 'Successfully deleted user';
       } catch (error) {
         replyPayload.message = 'Error deleting user';
+        replyPayload.value = JSON.stringify(error);
       }
       reply.send(replyPayload);
     }

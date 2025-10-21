@@ -7,6 +7,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "test": "bun test",
+    "test:watch": "bun test --watch",
     "lint": "bunx eslint",
     "format": "bunx prettier --write .",
     "prepare": "husky"
@@ -19,6 +20,7 @@
     "dotenv": "^17.2.3",
     "fastify": "^5.6.1",
     "fastify-firebase": "^2.0.1",
+    "firebase": "^12.4.0",
     "firebase-admin": "^13.5.0",
     "jest": "^30.2.0",
     "node-pre-gyp": "^0.17.0",
