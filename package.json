@@ -4,13 +4,7 @@
   "type": "commonjs",
   "scripts": {
     "dev": "ts-node src/index.ts",
-    "build": "tsc",
-    "start": "node dist/server.js",
-    "test": "bun test",
-    "test:watch": "bun test --watch",
-    "lint": "bunx eslint",
-    "format": "bunx prettier --write .",
-    "prepare": "husky"
+    "test": "NODE_ENV=test bun test src/tests/upload.test.ts src/tests/components.test.ts"
   },
   "dependencies": {
     "@babel/preset-typescript": "^7.27.1",

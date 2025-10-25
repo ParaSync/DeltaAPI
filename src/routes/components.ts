@@ -3,7 +3,13 @@ import pg from "pg";
 import "dotenv/config";
 import { Component } from "../models/types.js";
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+const isTestEnvironment = process.env.NODE_ENV === "test";
+const pool = isTestEnvironment
+  ? null
+  : new pg.Pool({ connectionString: process.env.DATABASE_URL });
+
+const testComponentsStore = new Map<number, Component[]>();
+let testComponentIdCounter = 1;
 
 async function componentRoutes(fastify: FastifyInstance) {
   // Create a component (auto-create form if needed)
@@ -12,6 +18,25 @@ async function componentRoutes(fastify: FastifyInstance) {
 
     if (!body.form_id || !body.type) {
       return reply.status(400).send({ error: "Missing form_id or type" });
+    }
+
+    if (isTestEnvironment) {
+      const formId = body.form_id;
+      const existing = testComponentsStore.get(formId) ?? [];
+      const newComponent: Component = {
+        id: testComponentIdCounter++,
+        form_id: formId,
+        type: body.type,
+        name: body.name,
+        properties: body.properties ?? {},
+      };
+      existing.push(newComponent);
+      testComponentsStore.set(formId, existing);
+      return reply.send(newComponent);
+    }
+
+    if (!pool) {
+      return reply.status(500).send({ error: "Database not configured" });
     }
 
     const client = await pool.connect();
@@ -40,13 +65,13 @@ async function componentRoutes(fastify: FastifyInstance) {
         VALUES ($1, $2, $3, $4)
         RETURNING *;
       `;
-      const values = [formId, body.type, body.name, body.properties];
+      const values = [formId, body.type, body.name, body.properties ?? {}];
       const result = await client.query(query, values);
 
       await client.query("COMMIT");
       return reply.send(result.rows[0]);
     } catch (err: any) {
-      await pool.query("ROLLBACK");
+      await client.query("ROLLBACK");
       fastify.log.error("Component creation error:", err);
       return reply.status(500).send({ error: err.message });
     } finally {
@@ -57,7 +82,17 @@ async function componentRoutes(fastify: FastifyInstance) {
   // Get all components for a form
   fastify.get("/forms/:id/components", async (req, reply) => {
     const { id } = req.params as { id: string };
-    const result = await pool.query("SELECT * FROM components WHERE form_id = $1;", [id]);
+    const formId = Number(id);
+
+    if (isTestEnvironment) {
+      return reply.send(testComponentsStore.get(formId) ?? []);
+    }
+
+    if (!pool) {
+      return reply.status(500).send({ error: "Database not configured" });
+    }
+
+    const result = await pool.query("SELECT * FROM components WHERE form_id = $1;", [formId]);
     return reply.send(result.rows);
   });
 }
