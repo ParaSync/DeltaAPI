@@ -17,7 +17,7 @@
   },
   "scripts": {
     "test": "bun test",
-    "lint": "bunx eslint",
+    "lint": "bunx eslint .",
     "format": "bunx prettier --write .",
     "prepare": "husky"
   },
