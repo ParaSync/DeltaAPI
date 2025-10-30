@@ -5,6 +5,7 @@ import firebasePrivateKeyJson from '../neuron-delta-firebase-adminsdk-fbsvc-e748
 import authRoutes from './routes/auth';
 import uploadRoutes from './routes/upload';
 import componentRoutes from './routes/components';
+import actionRoutes from './routes/action';
 import { BodyType } from './models/interfaces';
 
 const fastify = Fastify({
@@ -20,6 +21,7 @@ fastify.register(fastifyFirebase, firebasePrivateKeyJson);
 fastify.register(authRoutes);
 fastify.register(uploadRoutes);
 fastify.register(componentRoutes);
+fastify.register(actionRoutes);
 
 // Authentication hook
 fastify.addHook(
@@ -42,6 +44,7 @@ fastify.addHook(
         const cookie = await firebase.auth().createSessionCookie(idToken, { expiresIn });
         request.headers.cookie = cookie;
         request.headers.uid = decodedToken.uid;
+        request.headers.email = (await firebase.auth().getUser(decodedToken.uid)).email;
       }
     } catch (error) {
       request.log.warn(`Firebase ID Token verification failed ${error}`);

@@ -1,60 +1,15 @@
-type HTMLInputType =
-  | 'button'
-  | 'checkbox'
-  | 'color'
-  | 'date'
-  | 'datetime-local'
-  | 'email'
-  | 'file'
-  | 'hidden'
-  | 'image'
-  | 'month'
-  | 'number'
-  | 'password'
-  | 'radio'
-  | 'range'
-  | 'reset'
-  | 'search'
-  | 'submit'
-  | 'tel'
-  | 'text'
-  | 'time'
-  | 'url'
-  | 'week';
+// import { HTMLInputType } from "./types";
 
 export type Form = {
-  id: string;
+  id: number;
   title: string;
   userId: string;
-  createdAt: string;
-};
-
-export type Component = {
-  id: string;
-  formId: string;
-  type: HTMLInputType;
-  options?: ComponentOptions;
-};
-
-type ComponentOptions = {
-  choices?: string[];
-  label?: string;
+  createdAt: Date;
 };
 
 export type Submission = {
-  id: string;
+  id: number;
   formId: string;
   userId: string;
   createdAt: string;
-};
-
-export type Answer = {
-  options?: AnswerOptions;
-  componentId: string;
-  submissionId: string;
-};
-
-type AnswerOptions = {
-  selected?: string[];
-  input?: string;
 };
