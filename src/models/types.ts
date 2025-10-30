@@ -5,10 +5,21 @@ export type HTMLInputType =
   | "reset" | "search" | "submit" | "tel" | "time"
   | "url" | "week";
 
+export type ComponentType =
+  | "button"
+  | "checkbox"
+  | "radio"
+  | "text"
+  | "number"
+  | "select"
+  | "datetime"
+  | "file"
+  | "image";
+
 export type Component = {
   id?: number;
   form_id: number;
-  type: HTMLInputType;
+  type: ComponentType;
   name?: string;
   properties: Record<string, any>;
 };
