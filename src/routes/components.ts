@@ -1,26 +1,24 @@
-import { FastifyInstance } from "fastify";
-import pg from "pg";
-import "dotenv/config";
-import { Component } from "../models/types.js";
-
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+import { FastifyInstance } from 'fastify';
+import 'dotenv/config';
+import { Component } from '../models/types.js';
+import { pool } from '../lib/pg_pool';
 
 async function componentRoutes(fastify: FastifyInstance) {
   // Create a component (auto-create form if needed)
-  fastify.post("/components", async (req, reply) => {
+  fastify.post('/components', async (req, reply) => {
     const body = req.body as Component;
 
     if (!body.form_id || !body.type) {
-      return reply.status(400).send({ error: "Missing form_id or type" });
+      return reply.status(400).send({ error: 'Missing form_id or type' });
     }
 
     const client = await pool.connect();
 
     try {
-      await client.query("BEGIN");
+      await client.query('BEGIN');
 
       // Check if form exists
-      const formCheck = await client.query("SELECT id FROM forms WHERE id = $1", [body.form_id]);
+      const formCheck = await client.query('SELECT id FROM forms WHERE id = $1', [body.form_id]);
 
       // Auto-create a form if it doesn’t exist
       let formId = body.form_id;
@@ -43,21 +41,23 @@ async function componentRoutes(fastify: FastifyInstance) {
       const values = [formId, body.type, body.name, body.properties];
       const result = await client.query(query, values);
 
-      await client.query("COMMIT");
+      await client.query('COMMIT');
       return reply.send(result.rows[0]);
-    } catch (err: any) {
-      await pool.query("ROLLBACK");
-      fastify.log.error("Component creation error:", err);
-      return reply.status(500).send({ error: err.message });
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        await pool.query('ROLLBACK');
+        fastify.log.error(err, 'Component creation error');
+        return reply.status(500).send({ error: err.message });
+      }
     } finally {
       client.release();
     }
   });
 
   // Get all components for a form
-  fastify.get("/forms/:id/components", async (req, reply) => {
+  fastify.get('/forms/:id/components', async (req, reply) => {
     const { id } = req.params as { id: string };
-    const result = await pool.query("SELECT * FROM components WHERE form_id = $1;", [id]);
+    const result = await pool.query('SELECT * FROM components WHERE form_id = $1;', [id]);
     return reply.send(result.rows);
   });
 }
