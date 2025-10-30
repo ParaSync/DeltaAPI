@@ -1,5 +1,12 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import pg from 'pg';
+import 'dotenv/config';
 import { BodyType } from '../models/interfaces';
+
+const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 20 });
+
+//! WARN Currently we assume that the Firebase and Supabase servers
+//! WARN are in sync. If a user exists in only one of them, stuff will break.
 
 /**
  * Encapsulates routes
@@ -22,6 +29,11 @@ async function authRoutes(fastify: FastifyInstance) {
       const { email, password } = request.body;
       try {
         const userRecord = await auth().createUser({ email, password });
+
+        // Also create user record in Supabase
+        const queryText = `INSERT INTO users (username) VALUES ($1) RETURNING id`;
+        const result = await pool.query(queryText, [email]);
+        fastify.log.info(`email = ${email}; id = ${result.rows[0].id}`);
         replyPayload.message = 'Successfully created new user';
         replyPayload.value = userRecord;
       } catch (error) {
@@ -42,6 +54,15 @@ async function authRoutes(fastify: FastifyInstance) {
       try {
         if (typeof uid == 'string') {
           await auth().updateUser(uid, updateRequest);
+          // Also update user record in Supabase
+          const { email } = updateRequest;
+          if (email) {
+            const oldEmail = (await auth().getUser(uid)).email;
+            const queryText = `UPDATE users SET username = $1 WHERE username = $2`;
+            const queryResult = await pool.query(queryText, [email, oldEmail]);
+            console.log(`Update result: `);
+            console.log(queryResult.rows);
+          }
           replyPayload.message = 'Successfully updated user';
         } else {
           throw TypeError(`typeof request.headers.uid must be string, not ${typeof uid}`);
@@ -63,7 +84,13 @@ async function authRoutes(fastify: FastifyInstance) {
       const uid = request.headers.uid;
       try {
         if (typeof uid == 'string') {
+          const email = (await auth().getUser(uid)).email;
           await auth().deleteUser(uid);
+          // Also delete user record in Supabase
+          const queryText = `DELETE FROM users WHERE username = $1`;
+          const queryResult = await pool.query(queryText, [email]);
+          console.log(`Delete result: `);
+          console.log(queryResult.rows);
         } else {
           throw TypeError(`typeof request.headers.uid must be string, not ${typeof uid}`);
         }

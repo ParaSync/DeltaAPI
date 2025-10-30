@@ -8,9 +8,11 @@ const auth = getAuth(app);
 const route = (s: string) => `http://localhost:3000/${s}`;
 
 describe('Authentication', () => {
-  const email = 'test@example.com';
-  const password = 'Password';
+  const email = 'test-old@example.com';
+  const password = 'Password1';
+  const newEmail = 'test-new@example.com';
   const newPassword = 'Password2';
+
   const login = async (email: string, password: string) =>
     await signInWithEmailAndPassword(auth, email, password);
 
@@ -51,7 +53,7 @@ describe('Authentication', () => {
     expect(responseBody).toBeTruthy();
   });
 
-  test(`Server updates a user's password after logging in`, async () => {
+  test(`Server updates a user's password and email after logging in`, async () => {
     const { user } = await login(email, password);
     const idToken = await user.getIdToken();
 
@@ -59,7 +61,9 @@ describe('Authentication', () => {
     headers.append('Authorization', `Bearer ${idToken}`);
     headers.append('Content-Type', 'application/json');
 
-    const requestBody = JSON.stringify({ updateRequest: { password: newPassword } });
+    const requestBody = JSON.stringify({
+      updateRequest: { password: newPassword, email: newEmail },
+    });
 
     const config = { method: 'POST', headers, body: requestBody };
 
@@ -69,7 +73,7 @@ describe('Authentication', () => {
   });
 
   test(`Server deletes a user after logging in`, async () => {
-    const { user } = await login(email, newPassword);
+    const { user } = await login(newEmail, newPassword);
     const idToken = await user.getIdToken();
 
     const headers = new Headers();
