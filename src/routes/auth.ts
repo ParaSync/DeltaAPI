@@ -1,9 +1,7 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import pg from 'pg';
 import 'dotenv/config';
 import { BodyType } from '../models/interfaces';
-
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 20 });
+import { pool } from '../lib/pg_pool';
 
 //! WARN Currently we assume that the Firebase and Supabase servers
 //! WARN are in sync. If a user exists in only one of them, stuff will break.
@@ -33,6 +31,8 @@ async function authRoutes(fastify: FastifyInstance) {
         // Also create user record in Supabase
         const queryText = `INSERT INTO users (username) VALUES ($1) RETURNING id`;
         const result = await pool.query(queryText, [email]);
+        console.log(`Insert result: `);
+        console.log(result.rows);
         fastify.log.info(`email = ${email}; id = ${result.rows[0].id}`);
         replyPayload.message = 'Successfully created new user';
         replyPayload.value = userRecord;
@@ -58,7 +58,7 @@ async function authRoutes(fastify: FastifyInstance) {
           const { email } = updateRequest;
           if (email) {
             const oldEmail = (await auth().getUser(uid)).email;
-            const queryText = `UPDATE users SET username = $1 WHERE username = $2`;
+            const queryText = `UPDATE users SET username = ($1) WHERE username = ($2) RETURNING *`;
             const queryResult = await pool.query(queryText, [email, oldEmail]);
             console.log(`Update result: `);
             console.log(queryResult.rows);
@@ -87,7 +87,7 @@ async function authRoutes(fastify: FastifyInstance) {
           const email = (await auth().getUser(uid)).email;
           await auth().deleteUser(uid);
           // Also delete user record in Supabase
-          const queryText = `DELETE FROM users WHERE username = $1`;
+          const queryText = `DELETE FROM users WHERE username = ($1) RETURNING *`;
           const queryResult = await pool.query(queryText, [email]);
           console.log(`Delete result: `);
           console.log(queryResult.rows);
