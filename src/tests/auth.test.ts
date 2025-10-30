@@ -2,10 +2,11 @@ import { describe, expect, test } from '@jest/globals';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import firebaseConfig from '../../firebase-client-config.json';
+import '../index';
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const route = (s: string) => `http://localhost:3000/${s}`;
+const route = (s: string) => `http://localhost:3000${s}`;
 
 describe('Authentication', () => {
   const email = 'test@example.com';
@@ -80,5 +81,61 @@ describe('Authentication', () => {
     const response = await fetch(route('/delete-user'), config);
     const { message } = await response.json();
     expect(message).toBe('Successfully deleted user');
+  });
+
+  test(`User is created with an empty email`, async () => {
+    const headers = new Headers();
+    headers.append('Content-Type', 'application/json');
+
+    const requestBody = JSON.stringify({ email: '', password });
+
+    const config = { method: 'POST', headers, body: requestBody };
+
+    const response = await fetch(route('/create-user'), config);
+    const { message } = await response.json();
+
+    expect(message).toBe('Error creating new user');
+  });
+
+  test(`User is created without an email`, async () => {
+    const headers = new Headers();
+    headers.append('Content-Type', 'application/json');
+
+    const requestBody = JSON.stringify({ password });
+
+    const config = { method: 'POST', headers, body: requestBody };
+
+    const response = await fetch(route('/create-user'), config);
+    const { message } = await response.json();
+
+    expect(message).toBe('Error creating new user');
+  });
+
+  test(`User is created with an empty password`, async () => {
+    const headers = new Headers();
+    headers.append('Content-Type', 'application/json');
+
+    const requestBody = JSON.stringify({ email, password: '' });
+
+    const config = { method: 'POST', headers, body: requestBody };
+
+    const response = await fetch(route('/create-user'), config);
+    const { message } = await response.json();
+
+    expect(message).toBe('Error creating new user');
+  });
+
+  test(`User is created without a password`, async () => {
+    const headers = new Headers();
+    headers.append('Content-Type', 'application/json');
+
+    const requestBody = JSON.stringify({ password });
+
+    const config = { method: 'POST', headers, body: requestBody };
+
+    const response = await fetch(route('/create-user'), config);
+    const { message } = await response.json();
+
+    expect(message).toBe('Error creating new user');
   });
 });
