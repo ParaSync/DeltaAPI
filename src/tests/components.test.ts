@@ -1,37 +1,70 @@
-import { describe, expect, test } from "@jest/globals";
+import { describe, expect, test, beforeAll, afterAll } from '@jest/globals';
+import { route } from './util.js';
 
-const route = (s: string) => `http://localhost:3000/${s}`;
+describe('Component Routes', () => {
+  let componentId: string;
+  const formId = 9999;
 
-describe("Component Routes", () => {
-  const formId = 11; // ✅ Use your real form ID here
-
-  test("creates a new component", async () => {
-    const componentBody = {
-      form_id: formId,
-      type: "text",
-      name: "username",
-      properties: {
-        label: "Enter your name",
-        required: true,
-        placeholder: "e.g. Lance Tan",
-      },
-    };
-
-    const response = await fetch(route("components"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(componentBody),
-    });
-
-    expect(response.status).toBe(200);
+  beforeAll(() => {
+    // TODO: Log in (for now, the component routes' uid check is commented out)
+    // TODO: Create form and get formId
   });
 
-  test("fetches components for a form", async () => {
-    // ✅ Use the same formId as above
-    const response = await fetch(route(`forms/${formId}/components`));
+  afterAll(() => {
+    // TODO: Delete form using formId
+  });
+
+  test('creates a new text component', async () => {
+    const headers = new Headers();
+    headers.append('Content-Type', 'application/json');
+    const body = JSON.stringify({
+      formId,
+      properties: {
+        name: 'first-name',
+        placeholder: 'First Name',
+        required: true,
+      },
+    });
+    const config = { method: 'POST', headers, body };
+    const createResult = await fetch(route('/api/form/text/create'), config);
+    expect(createResult.status).toBe(200);
+  });
+
+  test('creates a new image component', async () => {
+    const headers = new Headers();
+    headers.append('Content-Type', 'application/json');
+    const body = JSON.stringify({
+      formId, // test form in Supabase
+      properties: {
+        name: 'hero',
+        image: {
+          name: 'hero-img.png',
+          data: await new Blob(['pretend this is imagedata'], { type: 'image/png' }).text(),
+          placeholder: 'A big hero image.',
+        },
+      },
+    });
+    const config = { method: 'POST', headers, body };
+    const createResult = await fetch(route('/api/form/image/create'), config);
+    const createResultJson = await createResult.json();
+    componentId = createResultJson.value.id;
+    expect(createResult.status).toBe(200);
+  });
+
+  test('fetches components for a form', async () => {
+    const response = await fetch(route(`/api/form/${formId}/list-components`));
     const json = await response.json();
 
     expect(Array.isArray(json)).toBe(true);
     expect(json.length).toBeGreaterThan(0); // should now pass
+  });
+
+  test('deletes component', async () => {
+    const headers = new Headers();
+    headers.append('Content-Type', 'application/json');
+    const body = JSON.stringify({ formId, componentId });
+    const config = { method: 'POST', headers, body };
+    const deleteResult = await fetch(route('/api/form/component/delete'), config);
+    expect(deleteResult.status).toBe(200);
   });
 });
