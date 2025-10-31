@@ -1,12 +1,13 @@
 import { describe, expect, test } from '@jest/globals';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import { route } from './util.js';
 import firebaseConfig from '../../firebase-client-config.json';
+
 import '../index';
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const route = (s: string) => `http://localhost:3000${s}`;
 
 describe('Authentication', () => {
   const email = 'test-old@example.com';
