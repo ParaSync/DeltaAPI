@@ -1,51 +1,28 @@
-import { FastifyInstance } from "fastify";
-import pg from "pg";
-import "dotenv/config";
-import { Component } from "../models/types.js";
-
-const isTestEnvironment = process.env.NODE_ENV === "test";
-const pool = isTestEnvironment
-  ? null
-  : new pg.Pool({ connectionString: process.env.DATABASE_URL });
-
-const testComponentsStore = new Map<number, Component[]>();
-let testComponentIdCounter = 1;
+import { FastifyInstance } from 'fastify';
+import 'dotenv/config';
+import { Component } from '../models/types.js';
+import { pool } from '../lib/pg_pool';
 
 async function componentRoutes(fastify: FastifyInstance) {
   // Create a component (auto-create form if needed)
-  fastify.post("/components", async (req, reply) => {
+  fastify.post('/components', async (req, reply) => {
     const body = req.body as Component;
 
     if (!body.form_id || !body.type) {
-      return reply.status(400).send({ error: "Missing form_id or type" });
-    }
-
-    if (isTestEnvironment) {
-      const formId = body.form_id;
-      const existing = testComponentsStore.get(formId) ?? [];
-      const newComponent: Component = {
-        id: testComponentIdCounter++,
-        form_id: formId,
-        type: body.type,
-        name: body.name,
-        properties: body.properties ?? {},
-      };
-      existing.push(newComponent);
-      testComponentsStore.set(formId, existing);
-      return reply.send(newComponent);
+      return reply.status(400).send({ error: 'Missing form_id or type' });
     }
 
     if (!pool) {
-      return reply.status(500).send({ error: "Database not configured" });
+      return reply.status(500).send({ error: 'Database not configured' });
     }
 
     const client = await pool.connect();
 
     try {
-      await client.query("BEGIN");
+      await client.query('BEGIN');
 
       // Check if form exists
-      const formCheck = await client.query("SELECT id FROM forms WHERE id = $1", [body.form_id]);
+      const formCheck = await client.query('SELECT id FROM forms WHERE id = $1', [body.form_id]);
 
       // Auto-create a form if it doesn’t exist
       let formId = body.form_id;
@@ -68,31 +45,23 @@ async function componentRoutes(fastify: FastifyInstance) {
       const values = [formId, body.type, body.name, body.properties ?? {}];
       const result = await client.query(query, values);
 
-      await client.query("COMMIT");
+      await client.query('COMMIT');
       return reply.send(result.rows[0]);
-    } catch (err: any) {
-      await client.query("ROLLBACK");
-      fastify.log.error("Component creation error:", err);
-      return reply.status(500).send({ error: err.message });
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        await pool.query('ROLLBACK');
+        fastify.log.error(err, 'Component creation error');
+        return reply.status(500).send({ error: err.message });
+      }
     } finally {
       client.release();
     }
   });
 
   // Get all components for a form
-  fastify.get("/forms/:id/components", async (req, reply) => {
+  fastify.get('/forms/:id/components', async (req, reply) => {
     const { id } = req.params as { id: string };
-    const formId = Number(id);
-
-    if (isTestEnvironment) {
-      return reply.send(testComponentsStore.get(formId) ?? []);
-    }
-
-    if (!pool) {
-      return reply.status(500).send({ error: "Database not configured" });
-    }
-
-    const result = await pool.query("SELECT * FROM components WHERE form_id = $1;", [formId]);
+    const result = await pool.query('SELECT * FROM components WHERE form_id = $1;', [id]);
     return reply.send(result.rows);
   });
 }
