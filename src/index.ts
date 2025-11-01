@@ -6,6 +6,7 @@ import authRoutes from './routes/auth';
 import uploadRoutes from './routes/upload';
 import componentRoutes from './routes/components';
 import { BodyType } from './models/interfaces';
+import cors from '@fastify/cors';
 
 const fastify = Fastify({
   logger: {
@@ -16,6 +17,7 @@ const fastify = Fastify({
   },
 });
 
+fastify.register(cors, { origin: true });
 fastify.register(fastifyFirebase, firebasePrivateKeyJson);
 fastify.register(authRoutes);
 fastify.register(uploadRoutes);

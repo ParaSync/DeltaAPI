@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@babel/preset-typescript": "^7.28.5",
+    "@fastify/cors": "^11.1.0",
     "@fastify/multipart": "^9.3.0",
     "@supabase/supabase-js": "^2.77.0",
     "dotenv": "^17.2.3",
