@@ -22,7 +22,7 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{js,ts,tsx,jsx}": "eslint --cache --fix",
-    "*.{js,ts,tsx,jsx,css,md}": "prettier --write"
+    "*.{js,ts,tsx,jsx}": "bunx eslint --cache --fix",
+    "*.{js,ts,tsx,jsx,css,md}": "bunx prettier --write"
   }
 }
