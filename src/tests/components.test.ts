@@ -33,21 +33,23 @@ describe('Component Routes', () => {
   test('creates a new image component', async () => {
     const headers = new Headers();
     headers.append('Content-Type', 'application/json');
+    const properties = {
+      name: 'hero',
+      image: {
+        name: 'hero-img.png',
+        data: await new Blob(['pretend this is imagedata'], { type: 'image/png' }).text(),
+        placeholder: 'A big hero image.',
+      },
+    };
     const body = JSON.stringify({
       formId, // test form in Supabase
-      properties: {
-        name: 'hero',
-        image: {
-          name: 'hero-img.png',
-          data: await new Blob(['pretend this is imagedata'], { type: 'image/png' }).text(),
-          placeholder: 'A big hero image.',
-        },
-      },
+      properties,
     });
     const config = { method: 'POST', headers, body };
     const createResult = await fetch(route('/api/form/image/create'), config);
     const createResultJson = await createResult.json();
-    componentId = createResultJson.value.id;
+    console.log(createResultJson);
+    componentId = createResultJson.value.component_id;
     expect(createResult.status).toBe(200);
   });
 
@@ -57,6 +59,25 @@ describe('Component Routes', () => {
 
     expect(Array.isArray(json)).toBe(true);
     expect(json.length).toBeGreaterThan(0); // should now pass
+  });
+
+  test('edits component', async () => {
+    const headers = new Headers();
+    headers.append('Content-Type', 'application/json');
+    const properties = {
+      name: 'new-hero',
+      image: {
+        name: 'new-hero-img.png',
+        data: await new Blob(['pretend this is edited imagedata'], { type: 'image/png' }).text(),
+        placeholder: 'A big hero image, but edited.',
+      },
+    };
+    const body = JSON.stringify({ formId, componentId, properties });
+    const config = { method: 'POST', headers, body };
+    console.log(componentId);
+    const editResult = await fetch(route('/api/form/image/edit'), config);
+    console.log((await editResult.json()).rows);
+    expect(editResult.status).toBe(200);
   });
 
   test('deletes component', async () => {

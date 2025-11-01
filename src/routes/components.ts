@@ -12,17 +12,21 @@ import { randomUUID } from 'crypto';
 import { DatabaseError } from 'pg';
 
 async function componentRoutes(fastify: FastifyInstance) {
+  // ! Uncomment this to let only authenticated clients create, edit, and delete components:
+  // fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
+  // const { uid } = request.headers;
+  // let replyPayload: ReplyPayload;
+  // if (typeof uid != 'string') {
+  //   replyPayload = { 'message': 'Forbidden', 'value': 'You need to be logged in to create components (and forms).' };
+  //   return reply.status(403).send(replyPayload);
+  // }
+  // })
+
   fastify.post(
     '/api/form/:componentType/create',
     async (request: FastifyRequest<{ Body: BodyType }>, reply: FastifyReply) => {
       const { uid } = request.headers;
       let replyPayload: ReplyPayload;
-
-      // Uncomment to let only authenticated clients create components:
-      // if (typeof uid != 'string') {
-      //   replyPayload = { 'message': 'Forbidden', 'value': 'You need to be logged in to create components (and forms).' };
-      //   return reply.status(403).send(replyPayload);
-      // }
 
       const { componentType } = request.params as { componentType: string };
       const { formId } = request.body;
@@ -31,8 +35,14 @@ async function componentRoutes(fastify: FastifyInstance) {
       validateComponent(componentType, properties);
 
       const { name } = properties;
-      const queryText =
-        'INSERT INTO components (form_id, properties, name, type) VALUES ($1, $2, $3, $4) RETURNING id';
+      const queryText = `
+        INSERT INTO
+          components (form_id, properties, name, type)
+        VALUES
+          ($1, $2, $3, $4)
+        RETURNING
+          id as component_id
+        `;
       const values = [formId, properties, name, componentType];
 
       switch (componentType) {
@@ -65,17 +75,93 @@ async function componentRoutes(fastify: FastifyInstance) {
   );
 
   fastify.post(
+    '/api/form/:componentType/edit',
+    async (request: FastifyRequest<{ Body: BodyType }>, reply: FastifyReply) => {
+      let replyPayload: ReplyPayload;
+      const { uid } = request.headers;
+      const { formId, componentId } = request.body;
+      let { properties: newProperties } = request.body;
+      const { componentType } = request.params as { componentType: string };
+
+      // Get old properties
+      const oldPropertiesQueryText = `
+        SELECT
+          properties as old_properties
+        FROM
+          components
+        WHERE
+          form_id = $1 AND id = $2;
+      `;
+      const oldPropertiesQueryValues = [formId, componentId];
+      const oldPropertiesQueryResult = await pool.query(
+        oldPropertiesQueryText,
+        oldPropertiesQueryValues
+      );
+      const { old_properties: oldProperties } = oldPropertiesQueryResult.rows[0];
+
+      switch (componentType) {
+        case 'image':
+          request.log.info('oldProperties');
+          request.log.info(oldProperties);
+          request.log.info('newProperties');
+          request.log.info(newProperties);
+          newProperties = await handleEditImageComponent(
+            uid as string,
+            oldProperties,
+            newProperties as ImageProperties
+          );
+          break;
+      }
+
+      // Update new properties
+      const updateQueryText = `
+        UPDATE
+          components
+        SET
+          properties = $1
+        WHERE
+          form_id = $2 AND id = $3
+        RETURNING
+          properties as new_properties,
+          type as component_ype
+        `;
+      const updateValues = [newProperties, formId, componentId];
+
+      try {
+        const updateQueryResult = await pool.query(updateQueryText, updateValues);
+        replyPayload = { message: 'Component edited successfully', value: updateQueryResult };
+        return reply.status(200).send(replyPayload);
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          // e.g. DatabaseError
+          replyPayload = { message: err.name, value: err.message };
+          return reply.status(500);
+        }
+      }
+    }
+  );
+
+  fastify.post(
     '/api/form/component/delete',
     async (request: FastifyRequest<{ Body: BodyType }>, reply: FastifyReply) => {
       const { formId, componentId } = request.body;
-      const queryText =
-        'DELETE FROM components WHERE form_id = $1 AND id = $2 RETURNING id, form_id, properties, type';
+      const queryText = `
+        DELETE FROM
+          components
+        WHERE
+          form_id = $1 AND id = $2
+        RETURNING
+          id AS component_id,
+          form_id,
+          properties,
+          type AS component_type
+        `;
       const values = [formId, componentId];
       let replyPayload: ReplyPayload;
 
       try {
         const queryResult = await pool.query(queryText, values);
-        const { properties, type: componentType } = queryResult.rows[0];
+        const { properties, component_type: componentType } = queryResult.rows[0];
         switch (componentType) {
           case 'image':
             handleDeleteImageComponent(properties);
@@ -138,6 +224,19 @@ async function handleDeleteImageComponent(properties: ImageProperties): Promise<
   } else {
     throw Error('Image component requested to be deleted, but image location is undefined');
   }
+}
+
+async function handleEditImageComponent(
+  userId: string,
+  oldProperties: ImageProperties,
+  newProperties: ImageProperties
+): Promise<ImageProperties> {
+  const deleteResult = await handleDeleteImageComponent(oldProperties);
+  if (deleteResult == true) {
+    newProperties = await handleCreateImageComponent(userId, newProperties);
+    return newProperties;
+  }
+  throw Error('Could not edit image properly');
 }
 
 export default componentRoutes;

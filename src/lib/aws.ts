@@ -70,6 +70,7 @@ export async function getFromAWS(fileName: string): Promise<AWS.S3.GetObjectOutp
 export async function deleteFromAWS(fileName: string): Promise<boolean> {
   const deleteParams: AWS.S3.DeleteObjectRequest = { ...bucketParams, Key: fileName };
   try {
+    console.log(`Delete Location: ${fileName}`);
     await s3.deleteObject(deleteParams).promise();
     console.log('Delete Success');
     return true;
