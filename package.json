@@ -20,10 +20,6 @@
     "dotenv": "^17.2.3",
     "fastify": "^5.6.1",
     "fastify-firebase": "^2.0.1",
-<<<<<<< HEAD
-=======
-    "firebase": "^12.4.0",
->>>>>>> develop
     "firebase-admin": "^13.5.0",
     "jest": "^30.2.0",
     "node-pre-gyp": "^0.17.0",
