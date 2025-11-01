@@ -85,7 +85,7 @@ describe('Component Routes', () => {
     headers.append('Content-Type', 'application/json');
     const body = JSON.stringify({ formId, componentId });
     const config = { method: 'POST', headers, body };
-    const deleteResult = await fetch(route('/api/form/component/delete'), config);
+    const deleteResult = await fetch(route('/api/form/image/delete'), config);
     expect(deleteResult.status).toBe(200);
   });
 });

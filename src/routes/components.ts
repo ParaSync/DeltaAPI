@@ -142,9 +142,10 @@ async function componentRoutes(fastify: FastifyInstance) {
   );
 
   fastify.post(
-    '/api/form/component/delete',
+    '/api/form/:componentType/delete',
     async (request: FastifyRequest<{ Body: BodyType }>, reply: FastifyReply) => {
       const { formId, componentId } = request.body;
+      const { componentType } = request.params as { componentType: string };
       const queryText = `
         DELETE FROM
           components
@@ -153,15 +154,14 @@ async function componentRoutes(fastify: FastifyInstance) {
         RETURNING
           id AS component_id,
           form_id,
-          properties,
-          type AS component_type
+          properties
         `;
       const values = [formId, componentId];
       let replyPayload: ReplyPayload;
 
       try {
         const queryResult = await pool.query(queryText, values);
-        const { properties, component_type: componentType } = queryResult.rows[0];
+        const { properties } = queryResult.rows[0];
         switch (componentType) {
           case 'image':
             handleDeleteImageComponent(properties);
