@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import 'dotenv/config';
-import { BodyType, ReplyPayload } from '../models/interfaces';
+import { BodyType, ReplyPayload } from '../models/routes';
 import { pool } from '../lib/pg_pool';
 
 //! WARN Currently we assume that the Firebase and Supabase servers

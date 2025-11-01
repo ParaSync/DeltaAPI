@@ -1,12 +1,16 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import 'dotenv/config';
 import { pool } from '../lib/pg_pool';
+import { BodyType, ReplyPayload } from '../models/routes.js';
 import {
-  BodyType,
   ComponentProperties,
   ImageProperties,
-  ReplyPayload,
-} from '../models/interfaces.js';
+  isInputProperties,
+  isLabelProperties,
+  isTableProperties,
+  isImageProperties,
+} from '../models/components.js';
+
 import { deleteFromAWS, uploadToAWS } from '../lib/aws.js';
 import { randomUUID } from 'crypto';
 import { DatabaseError } from 'pg';
@@ -190,10 +194,33 @@ async function componentRoutes(fastify: FastifyInstance) {
 }
 
 function validateComponent(componentType: string, properties: ComponentProperties) {
-  console.log(
-    `Validating ${componentType} component with properties ${properties} is a TODO feature.`
-  );
-  // TODO
+  let valid = false;
+
+  if (componentType != properties.type) {
+    throw Error(
+      `Component validation error: component ${properties.name}` +
+        ` properties say it is ${properties.type}` +
+        ` but URL param used is ${componentType}`
+    );
+  }
+
+  switch (componentType) {
+    case 'image':
+      valid = isImageProperties(properties);
+      break;
+    case 'label':
+      valid = isLabelProperties(properties);
+      break;
+    case 'input':
+      valid = isInputProperties(properties);
+      break;
+    case 'table':
+      valid = isTableProperties(properties);
+      break;
+  }
+  if (!valid) {
+    throw Error(`Component validation error: component ${properties.name} is not ${componentType}`);
+  }
 }
 
 async function handleCreateImageComponent(

@@ -5,7 +5,7 @@ import firebasePrivateKeyJson from '../neuron-delta-firebase-adminsdk-fbsvc-e748
 import authRoutes from './routes/auth';
 import uploadRoutes from './routes/upload';
 import componentRoutes from './routes/components';
-import { BodyType } from './models/interfaces';
+import { BodyType } from './models/routes';
 
 const fastify = Fastify({
   logger: {

@@ -14,19 +14,25 @@ describe('Component Routes', () => {
     // TODO: Delete form using formId
   });
 
-  test('creates a new text component', async () => {
+  test('creates a new text input component', async () => {
     const headers = new Headers();
     headers.append('Content-Type', 'application/json');
-    const body = JSON.stringify({
-      formId,
-      properties: {
-        name: 'first-name',
+    const properties = {
+      name: 'first-name',
+      type: 'input',
+      input: {
+        type: 'text',
         placeholder: 'First Name',
         required: true,
       },
+    };
+    const body = JSON.stringify({
+      formId,
+      properties,
     });
     const config = { method: 'POST', headers, body };
-    const createResult = await fetch(route('/api/form/text/create'), config);
+    const createResult = await fetch(route('/api/form/input/create'), config);
+    console.log(await createResult.json());
     expect(createResult.status).toBe(200);
   });
 
@@ -35,6 +41,7 @@ describe('Component Routes', () => {
     headers.append('Content-Type', 'application/json');
     const properties = {
       name: 'hero',
+      type: 'image',
       image: {
         name: 'hero-img.png',
         data: await new Blob(['pretend this is imagedata'], { type: 'image/png' }).text(),
@@ -66,6 +73,7 @@ describe('Component Routes', () => {
     headers.append('Content-Type', 'application/json');
     const properties = {
       name: 'new-hero',
+      type: 'image',
       image: {
         name: 'new-hero-img.png',
         data: await new Blob(['pretend this is edited imagedata'], { type: 'image/png' }).text(),
@@ -76,7 +84,7 @@ describe('Component Routes', () => {
     const config = { method: 'POST', headers, body };
     console.log(componentId);
     const editResult = await fetch(route('/api/form/image/edit'), config);
-    console.log((await editResult.json()).rows);
+    console.log(await editResult.json());
     expect(editResult.status).toBe(200);
   });
 
@@ -86,6 +94,7 @@ describe('Component Routes', () => {
     const body = JSON.stringify({ formId, componentId });
     const config = { method: 'POST', headers, body };
     const deleteResult = await fetch(route('/api/form/image/delete'), config);
+    console.log(await deleteResult.json());
     expect(deleteResult.status).toBe(200);
   });
 });
