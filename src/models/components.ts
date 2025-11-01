@@ -80,7 +80,7 @@ export interface TableProperties extends ComponentProperties {
     rows?: number;
     maxRows?: number;
     minRows?: number;
-    columns: [properties: ComponentProperties];
+    columns: [properties: InputProperties];
   };
 }
 
@@ -147,6 +147,7 @@ export function isTableProperties(
   const tbl = table as Record<string, unknown>;
   if (!Array.isArray(tbl.columns)) return false;
   // ensure columns contain objects resembling ComponentProperties (name/type)
+  // note: technically these should be InputProperties, but InputProperties extend ComponentProperties
   const cols = tbl.columns as unknown[];
   if (cols.length === 0) return true; // empty columns still OK
   const first = cols[0];
