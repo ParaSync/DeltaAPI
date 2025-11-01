@@ -8,10 +8,5 @@ node_modules
 .env.production
 
 neuron-delta-firebase-adminsdk-fbsvc-e748a310fb.json
-<<<<<<< HEAD
 firebase-client-config.json
-
 .DS_Store
-=======
-firebase-client-config.json
->>>>>>> develop

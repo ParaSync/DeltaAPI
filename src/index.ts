@@ -14,6 +14,8 @@ import deleteFormRoutes from "./api/form/delete/[formID]";
 import { BodyType } from './models/interfaces';
 import answerFormRoutes from "./api/form/answer/[formID]";
 import clearFormRoutes from "./api/form/clear/[formID]";
+import componentRoutes from './routes/components';
+import { BodyType } from './models/routes';
 
 const fastify = Fastify({
   logger: {

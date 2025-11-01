@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "commonjs",
   "scripts": {
-    "dev": "ts-node src/index.ts",
+    "dev": "bun src/index.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "test": "bun test",

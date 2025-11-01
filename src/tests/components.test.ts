@@ -1,133 +1,100 @@
-import { describe, expect, test } from "@jest/globals";
+import { describe, expect, test, beforeAll, afterAll } from '@jest/globals';
+import { route } from './util.js';
 
-const TEST_USER_ID = "892d56fa-50c6-43b3-86e9-f162329760a1";
-const route = (s: string) => `http://localhost:3000/${s}`;
+describe('Component Routes', () => {
+  let componentId: string;
+  const formId = 9999;
 
-const unique = (prefix: string) =>
-  `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-
-const buildFormPayload = () => ({
-  title: unique("ComponentTestForm"),
-  user_id: TEST_USER_ID,
-  components: [
-    {
-      type: "text",
-      name: unique("seed_text"),
-      order: 1,
-      properties: { label: "Seed Text Field" },
-    },
-  ],
-});
-
-const createForm = async () => {
-  const response = await fetch(route("api/form/create"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(buildFormPayload()),
+  beforeAll(() => {
+    // TODO: Log in (for now, the component routes' uid check is commented out)
+    // TODO: Create form and get formId
   });
 
-  expect(response.status).toBe(201);
-  return response.json();
-};
+  afterAll(() => {
+    // TODO: Delete form using formId
+  });
 
-describe("Component Routes", () => {
-  test("creates a valid text component", async () => {
-    const form = await createForm();
-    const componentBody = {
-      form_id: form.id,
-      type: "text",
-      name: unique("username"),
-      properties: {
-        label: "Enter your name",
+  test('creates a new text input component', async () => {
+    const headers = new Headers();
+    headers.append('Content-Type', 'application/json');
+    const properties = {
+      name: 'first-name',
+      type: 'input',
+      input: {
+        type: 'text',
+        placeholder: 'First Name',
         required: true,
-        placeholder: "e.g. Lance Tan",
-        minLength: 2,
-        maxLength: 30,
       },
     };
-
-    const response = await fetch(route("components"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(componentBody),
+    const body = JSON.stringify({
+      formId,
+      properties,
     });
-
-    expect(response.status).toBe(200);
-
-    const json = await response.json();
-    expect(json.type).toBe("text");
-    expect(json.form_id).toBe(form.id);
-    expect(json.properties.label).toBe(componentBody.properties.label);
+    const config = { method: 'POST', headers, body };
+    const createResult = await fetch(route('/api/form/input/create'), config);
+    console.log(await createResult.json());
+    expect(createResult.status).toBe(200);
   });
 
-  test("rejects number component with non-numeric defaults", async () => {
-    const form = await createForm();
-
-    const response = await fetch(route("components"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        form_id: form.id,
-        type: "number",
-        name: unique("age"),
-        properties: {
-          label: "Age",
-          defaultValue: "twenty",
-        },
-      }),
+  test('creates a new image component', async () => {
+    const headers = new Headers();
+    headers.append('Content-Type', 'application/json');
+    const properties = {
+      name: 'hero',
+      type: 'image',
+      image: {
+        name: 'hero-img.png',
+        data: await new Blob(['pretend this is imagedata'], { type: 'image/png' }).text(),
+        placeholder: 'A big hero image.',
+      },
+    };
+    const body = JSON.stringify({
+      formId, // test form in Supabase
+      properties,
     });
-
-    expect(response.status).toBe(400);
-
-    const json = await response.json();
-    expect(json.error).toBe("Number property 'defaultValue' must be a number.");
+    const config = { method: 'POST', headers, body };
+    const createResult = await fetch(route('/api/form/image/create'), config);
+    const createResultJson = await createResult.json();
+    console.log(createResultJson);
+    componentId = createResultJson.value.component_id;
+    expect(createResult.status).toBe(200);
   });
 
-  test("rejects select component without options array", async () => {
-    const form = await createForm();
-
-    const response = await fetch(route("components"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        form_id: form.id,
-        type: "select",
-        name: unique("department"),
-        properties: {
-          label: "Department",
-          options: "Sales,Marketing",
-        },
-      }),
-    });
-
-    expect(response.status).toBe(400);
-
+  test('fetches components for a form', async () => {
+    const response = await fetch(route(`/api/form/${formId}/list-components`));
     const json = await response.json();
-    expect(json.error).toContain(
-      "select components require an 'options' array"
-    );
-  });
 
-  test("fetches components for a form", async () => {
-    const form = await createForm();
-
-    await fetch(route("components"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        form_id: form.id,
-        type: "text",
-        name: unique("extra_field"),
-        properties: { label: "Extra Field", order: 2 },
-      }),
-    });
-
-    const response = await fetch(route(`forms/${form.id}/components`));
-    expect(response.status).toBe(200);
-
-    const json = await response.json();
     expect(Array.isArray(json)).toBe(true);
-    expect(json.length).toBeGreaterThan(0);
-    expect(json.some((c: any) => c.form_id === form.id)).toBe(true);
+    expect(json.length).toBeGreaterThan(0); // should now pass
+  });
+
+  test('edits component', async () => {
+    const headers = new Headers();
+    headers.append('Content-Type', 'application/json');
+    const properties = {
+      name: 'new-hero',
+      type: 'image',
+      image: {
+        name: 'new-hero-img.png',
+        data: await new Blob(['pretend this is edited imagedata'], { type: 'image/png' }).text(),
+        placeholder: 'A big hero image, but edited.',
+      },
+    };
+    const body = JSON.stringify({ formId, componentId, properties });
+    const config = { method: 'POST', headers, body };
+    console.log(componentId);
+    const editResult = await fetch(route('/api/form/image/edit'), config);
+    console.log(await editResult.json());
+    expect(editResult.status).toBe(200);
+  });
+
+  test('deletes component', async () => {
+    const headers = new Headers();
+    headers.append('Content-Type', 'application/json');
+    const body = JSON.stringify({ formId, componentId });
+    const config = { method: 'POST', headers, body };
+    const deleteResult = await fetch(route('/api/form/image/delete'), config);
+    console.log(await deleteResult.json());
+    expect(deleteResult.status).toBe(200);
   });
 });
