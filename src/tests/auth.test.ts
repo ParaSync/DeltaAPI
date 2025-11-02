@@ -1,10 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
-import firebaseConfig from '../../firebase-client-config.json';
 import '../index';
 import { randomInt } from 'crypto';
+import 'dotenv/config';
 
+const firebaseConfig = JSON.parse(process.env.FIREBASE_CLIENT_CONFIG as string);
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const route = (s: string) => `http://localhost:3000${s}`;
