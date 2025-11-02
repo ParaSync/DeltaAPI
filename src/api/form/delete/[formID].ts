@@ -1,14 +1,17 @@
 import { FastifyInstance } from "fastify";
 import "dotenv/config";
-import { pool } from '../../../lib/pg_pool';
+import { pool } from "../../../lib/pg_pool.js";
+import { ReplyPayload } from "../../../models/routes.js";
 
 const isTestEnvironment = process.env.NODE_ENV === "test";
+const testDeletedForms = new Set<number>();
 
 type ConfirmBody = {
   confirm?: boolean;
 };
 
-const testDeletedForms = new Set<number>();
+const sendReply = (reply: any, status: number, payload: ReplyPayload) =>
+  reply.status(status).send(payload);
 
 async function deleteFormRoutes(fastify: FastifyInstance) {
   fastify.delete("/api/form/delete/:formID", async (req, reply) => {
@@ -16,35 +19,37 @@ async function deleteFormRoutes(fastify: FastifyInstance) {
     const parsedId = Number(formID);
 
     if (!Number.isInteger(parsedId) || parsedId <= 0) {
-      return reply.status(400).send({ error: "Invalid form ID." });
+      return sendReply(reply, 400, {
+        message: "Invalid form ID.",
+        value: null,
+      });
     }
 
     const body = (req.body as ConfirmBody) ?? {};
     if (body.confirm !== true) {
-      return reply.status(400).send({
-        error: "Confirmation required before deleting form.",
-        message: "Set confirm=true to proceed.",
+      return sendReply(reply, 400, {
+        message: "Confirmation required before deleting form.",
+        value: { hint: "Set confirm=true to proceed." },
       });
     }
 
     if (isTestEnvironment) {
       const existed = testDeletedForms.has(parsedId);
       testDeletedForms.add(parsedId);
-      return existed
-        ? reply.send({
-            message: "Form deletion confirmed (test mode).",
-            formId: parsedId,
-          })
-        : reply.send({
-            message: "Form deleted successfully (test mode).",
-            formId: parsedId,
-          });
+
+      return sendReply(reply, 200, {
+        message: existed
+          ? "Form deletion confirmed (test mode)."
+          : "Form deleted successfully (test mode).",
+        value: { formId: String(parsedId) },
+      });
     }
 
     if (!pool) {
-      return reply
-        .status(500)
-        .send({ error: "Database connection is not available." });
+      return sendReply(reply, 500, {
+        message: "Database connection is not available.",
+        value: null,
+      });
     }
 
     const client = await pool.connect();
@@ -63,20 +68,23 @@ async function deleteFormRoutes(fastify: FastifyInstance) {
 
       if (formResult.rowCount === 0) {
         await client.query("ROLLBACK");
-        return reply.status(404).send({ error: "Form not found." });
+        return sendReply(reply, 404, {
+          message: "Form not found.",
+          value: null,
+        });
       }
 
       await client.query("COMMIT");
-      return reply.send({
+      return sendReply(reply, 200, {
         message: "Form deleted successfully.",
-        formId: formResult.rows[0].id,
+        value: { formId: String(formResult.rows[0].id) },
       });
     } catch (error) {
       await client.query("ROLLBACK");
       fastify.log.error({ err: error }, "Form deletion error");
-      return reply.status(500).send({
-        error: "Failed to delete form.",
-        details: error instanceof Error ? error.message : String(error),
+      return sendReply(reply, 500, {
+        message: "Failed to delete form.",
+        value: error instanceof Error ? error.message : String(error),
       });
     } finally {
       client.release();

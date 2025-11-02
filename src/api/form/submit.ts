@@ -1,11 +1,20 @@
 import { FastifyInstance } from "fastify";
 import "dotenv/config";
-import { Component } from "../../models/types.js";
-import { getTestFormsSnapshot } from './create';
-import { pool } from '../../lib/pg_pool';
+import { ReplyPayload } from "../../models/routes.js";
+import { ComponentType } from "../../models/components.js";
+import { pool } from "../../lib/pg_pool.js";
+import { getTestFormsSnapshot } from "./create";
+
+type FormComponent = {
+  id: number | string;
+  form_id?: number | string;
+  formId?: number | string;
+  type: ComponentType | string;
+  name?: string;
+  properties?: Record<string, unknown>;
+};
 
 const isTestEnvironment = process.env.NODE_ENV === "test";
-
 
 type AnswerEntry = {
   componentId: number;
@@ -25,11 +34,32 @@ type StoredResponse = {
   answers: Record<string, unknown>;
 };
 
+const ALLOWED_TYPES: ComponentType[] = ["image", "label", "input", "table"];
+
+const sendReply = (reply: any, status: number, payload: ReplyPayload) =>
+  reply.status(status).send(payload);
+
 const testResponsesStore = new Map<number, StoredResponse[]>();
 let testResponseIdCounter = 1;
 
 function isRecord(value: unknown): value is Record<string, any> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function toComponentType(candidate: unknown): ComponentType {
+  if (typeof candidate === "string" && ALLOWED_TYPES.includes(candidate as ComponentType)) {
+    return candidate as ComponentType;
+  }
+  return "input";
+}
+
+function toNumericId(id: number | string | undefined): number | null {
+  if (typeof id === "number" && Number.isFinite(id)) return id;
+  if (typeof id === "string" && id.trim() !== "") {
+    const parsed = Number(id);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
 }
 
 function extractOptionValues(options: unknown): string[] | null {
@@ -57,86 +87,71 @@ function coerceNumber(raw: unknown): number | null {
   return null;
 }
 
-function validateAnswer(component: Component, rawValue: unknown): {
-  ok: boolean;
-  value?: unknown;
-  error?: string;
-} {
-  const props = isRecord(component.properties) ? component.properties : {};
-  const required = Boolean(props.required);
+function resolveInputKind(props: Record<string, any>): string {
+  const candidates = [
+    props.inputType,
+    props.fieldType,
+    props.type,
+    props.kind,
+    props.variant,
+  ];
 
-  const answerMissing =
-    rawValue === undefined ||
-    rawValue === null ||
-    (typeof rawValue === "string" && rawValue.trim() === "");
-
-  if (answerMissing) {
-    if (required) {
-      return {
-        ok: false,
-        error: `Component '${component.name ?? component.id}' is required.`,
-      };
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim() !== "") {
+      return candidate;
     }
-    return { ok: true };
   }
 
-  switch (component.type) {
-    case "text": {
-      if (typeof rawValue !== "string") {
-        return { ok: false, error: "Text answers must be strings." };
-      }
-      const trimmed = rawValue.trim();
+  return "text";
+}
 
-      if (
-        typeof props.minLength === "number" &&
-        trimmed.length < props.minLength
-      ) {
-        return {
-          ok: false,
-          error: `Text answer must be at least ${props.minLength} characters long.`,
-        };
-      }
+function validateInputAnswer(
+  inputKind: string,
+  props: Record<string, any>,
+  rawValue: unknown
+): { ok: boolean; value?: unknown; error?: string } {
+  const getNumberProp = (key: string): number | undefined =>
+    typeof props[key] === "number" ? props[key] : undefined;
 
-      if (
-        typeof props.maxLength === "number" &&
-        trimmed.length > props.maxLength
-      ) {
-        return {
-          ok: false,
-          error: `Text answer must be at most ${props.maxLength} characters long.`,
-        };
-      }
+  const getBooleanProp = (key: string): boolean | undefined =>
+    typeof props[key] === "boolean" ? props[key] : undefined;
 
-      return { ok: true, value: trimmed };
-    }
+  const getStringProp = (key: string): string | undefined =>
+    typeof props[key] === "string" ? props[key] : undefined;
 
+  switch (inputKind) {
     case "number": {
       const coerced = coerceNumber(rawValue);
       if (coerced === null) {
         return { ok: false, error: "Number answers must be numeric." };
       }
 
-      if (typeof props.min === "number" && coerced < props.min) {
+      const min = getNumberProp("min");
+      const max = getNumberProp("max");
+      const step = getNumberProp("step");
+
+      if (min !== undefined && coerced < min) {
         return {
           ok: false,
-          error: `Number answer cannot be less than ${props.min}.`,
+          error: `Number answer cannot be less than ${min}.`,
         };
       }
 
-      if (typeof props.max === "number" && coerced > props.max) {
+      if (max !== undefined && coerced > max) {
         return {
           ok: false,
-          error: `Number answer cannot be greater than ${props.max}.`,
+          error: `Number answer cannot be greater than ${max}.`,
         };
       }
 
-      if (typeof props.step === "number" && props.step > 0) {
-        const remainder = Math.abs((coerced - (props.min ?? 0)) % props.step);
+      if (step !== undefined && step > 0) {
+        const base = min ?? 0;
+        const remainder = Math.abs((coerced - base) % step);
         const epsilon = 1e-9;
-        if (remainder > epsilon && Math.abs(remainder - props.step) > epsilon) {
+        if (remainder > epsilon && Math.abs(remainder - step) > epsilon) {
           return {
             ok: false,
-            error: `Number answer must align with step ${props.step}.`,
+            error: `Number answer must align with step ${step}.`,
           };
         }
       }
@@ -156,7 +171,7 @@ function validateAnswer(component: Component, rawValue: unknown): {
       if (!optionValues) {
         return {
           ok: false,
-          error: "Checkbox component is missing valid options for validation.",
+          error: "Checkbox input is missing valid options.",
         };
       }
 
@@ -174,54 +189,34 @@ function validateAnswer(component: Component, rawValue: unknown): {
         };
       }
 
-      if (
-        typeof props.maxSelections === "number" &&
-        selections.length > props.maxSelections
-      ) {
+      const maxSelections = getNumberProp("maxSelections");
+      if (maxSelections !== undefined && selections.length > maxSelections) {
         return {
           ok: false,
-          error: `Checkbox answer cannot select more than ${props.maxSelections} options.`,
+          error: `Checkbox answer cannot select more than ${maxSelections} options.`,
         };
       }
 
       return { ok: true, value: selections };
     }
 
-    case "radio": {
-      const optionValues = extractOptionValues(props.options);
-      if (!optionValues) {
-        return {
-          ok: false,
-          error: "Radio component is missing valid options for validation.",
-        };
-      }
-
-      const selection = String(rawValue);
-
-      if (!optionValues.includes(selection)) {
-        return {
-          ok: false,
-          error: `Radio answer must be one of: ${optionValues.join(", ")}.`,
-        };
-      }
-
-      return { ok: true, value: selection };
-    }
-
+    case "radio":
     case "select": {
       const optionValues = extractOptionValues(props.options);
       if (!optionValues) {
         return {
           ok: false,
-          error: "Select component is missing valid options for validation.",
+          error: "Select/radio input is missing valid options.",
         };
       }
 
-      if (props.multiple) {
+      const multiple = getBooleanProp("multiple") === true;
+
+      if (multiple) {
         if (!Array.isArray(rawValue)) {
           return {
             ok: false,
-            error: "Select (multiple) answers must be an array of values.",
+            error: "Multi-select answers must be an array of values.",
           };
         }
 
@@ -267,23 +262,20 @@ function validateAnswer(component: Component, rawValue: unknown): {
         };
       }
 
-      if (
-        typeof props.min === "string" &&
-        Date.parse(rawValue) < Date.parse(props.min)
-      ) {
+      const minDate = getStringProp("min");
+      const maxDate = getStringProp("max");
+
+      if (minDate && Date.parse(rawValue) < Date.parse(minDate)) {
         return {
           ok: false,
-          error: `Datetime answer cannot be earlier than ${props.min}.`,
+          error: `Datetime answer cannot be earlier than ${minDate}.`,
         };
       }
 
-      if (
-        typeof props.max === "string" &&
-        Date.parse(rawValue) > Date.parse(props.max)
-      ) {
+      if (maxDate && Date.parse(rawValue) > Date.parse(maxDate)) {
         return {
           ok: false,
-          error: `Datetime answer cannot be later than ${props.max}.`,
+          error: `Datetime answer cannot be later than ${maxDate}.`,
         };
       }
 
@@ -298,13 +290,14 @@ function validateAnswer(component: Component, rawValue: unknown): {
         };
       }
 
+      const maxSizeMb = getNumberProp("maxSizeMb");
       if (
-        props.maxSizeMb &&
-        rawValue.length / (1024 * 1024) > props.maxSizeMb
+        maxSizeMb !== undefined &&
+        rawValue.length / (1024 * 1024) > maxSizeMb
       ) {
         return {
           ok: false,
-          error: `File answer exceeds max size of ${props.maxSizeMb} MB.`,
+          error: `File answer exceeds max size of ${maxSizeMb} MB.`,
         };
       }
 
@@ -321,12 +314,69 @@ function validateAnswer(component: Component, rawValue: unknown): {
       return { ok: true, value: rawValue ?? null };
     }
 
-    default:
+    case "text":
+    default: {
+      if (typeof rawValue !== "string") {
+        return { ok: false, error: "Text answers must be strings." };
+      }
+      const trimmed = rawValue.trim();
+      const minLength = getNumberProp("minLength");
+      const maxLength = getNumberProp("maxLength");
+
+      if (minLength !== undefined && trimmed.length < minLength) {
+        return {
+          ok: false,
+          error: `Text answer must be at least ${minLength} characters long.`,
+        };
+      }
+
+      if (maxLength !== undefined && trimmed.length > maxLength) {
+        return {
+          ok: false,
+          error: `Text answer must be at most ${maxLength} characters long.`,
+        };
+      }
+
+      return { ok: true, value: trimmed };
+    }
+  }
+}
+
+function validateAnswer(component: FormComponent, rawValue: unknown): {
+  ok: boolean;
+  value?: unknown;
+  error?: string;
+} {
+  const props = isRecord(component.properties) ? component.properties : {};
+  const resolvedType = toComponentType(component.type);
+
+  const required =
+    typeof props.required === "boolean" ? props.required : Boolean(props.required);
+
+  const answerMissing =
+    rawValue === undefined ||
+    rawValue === null ||
+    (typeof rawValue === "string" && rawValue.trim() === "");
+
+  if (answerMissing) {
+    if (required) {
       return {
         ok: false,
-        error: `Unsupported component type: ${component.type}.`,
+        error: `Component '${component.name ?? component.id}' is required.`,
       };
+    }
+    return { ok: true };
   }
+
+  if (resolvedType !== "input") {
+    return {
+      ok: true,
+      value: rawValue,
+    };
+  }
+
+  const inputKind = resolveInputKind(props).toLowerCase();
+  return validateInputAnswer(inputKind, props, rawValue);
 }
 
 function ensureAllAnswersReferenced(
@@ -348,15 +398,20 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
     const parsedId = Number(formID);
 
     if (!Number.isInteger(parsedId) || parsedId <= 0) {
-      return reply.status(400).send({ error: "Invalid form ID." });
+      return sendReply(reply, 400, {
+        message: "Invalid form ID.",
+        value: null,
+      });
     }
 
     const body = req.body as AnswerSubmissionBody;
 
     if (!body || !Array.isArray(body.answers) || body.answers.length === 0) {
-      return reply.status(400).send({
-        error: "Answers payload is required.",
-        details: "Provide an array of { componentId, value } entries.",
+      return sendReply(reply, 400, {
+        message: "Answers payload is required.",
+        value: {
+          details: "Provide an array of { componentId, value } entries.",
+        },
       });
     }
 
@@ -364,23 +419,30 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
     const respondentId =
       typeof body.respondent_id === "string" ? body.respondent_id : null;
 
-    let components: Component[] = [];
+    let components: FormComponent[] = [];
 
     if (isTestEnvironment) {
       const form = getTestFormsSnapshot().find(
-        (storedForm) => storedForm.id === parsedId
+        (storedForm) => Number(storedForm.id) === parsedId
       );
 
       if (!form) {
-        return reply.status(404).send({ error: "Form not found." });
+        return sendReply(reply, 404, {
+          message: "Form not found.",
+          value: null,
+        });
       }
 
-      components = form.components;
+      components = form.components.map((component) => ({
+        ...component,
+        type: toComponentType(component.type),
+      }));
     } else {
       if (!pool) {
-        return reply
-          .status(500)
-          .send({ error: "Database connection is not available." });
+        return sendReply(reply, 500, {
+          message: "Database connection is not available.",
+          value: null,
+        });
       }
 
       const client = await pool.connect();
@@ -397,10 +459,13 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
         );
 
         if (formResult.rowCount === 0) {
-          return reply.status(404).send({ error: "Form not found." });
+          return sendReply(reply, 404, {
+            message: "Form not found.",
+            value: null,
+          });
         }
 
-        const componentsResult = await client.query<Component>(
+        const componentsResult = await client.query<FormComponent>(
           `
             SELECT id, form_id, type, name, properties
             FROM components
@@ -410,19 +475,25 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
           [parsedId]
         );
 
-        components = componentsResult.rows;
+        components = componentsResult.rows.map((row) => ({
+          ...row,
+          type: toComponentType(row.type),
+        }));
 
         if (components.length === 0) {
-          return reply.status(400).send({
-            error: "Form has no components to answer.",
+          return sendReply(reply, 400, {
+            message: "Form has no components to answer.",
+            value: null,
           });
         }
 
-        const componentIds = new Set(
-          components
-            .map((component) => Number(component.id))
-            .filter((id): id is number => !Number.isNaN(id))
-        );
+        const componentIds = new Set<number>();
+        for (const component of components) {
+          const numericId = toNumericId(component.id);
+          if (numericId !== null) {
+            componentIds.add(numericId);
+          }
+        }
 
         const unknownAnswerError = ensureAllAnswersReferenced(
           answerEntries,
@@ -430,22 +501,25 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
         );
 
         if (unknownAnswerError) {
-          return reply.status(400).send({ error: unknownAnswerError });
+          return sendReply(reply, 400, {
+            message: unknownAnswerError,
+            value: null,
+          });
         }
 
         const sanitizedAnswers = new Map<number, unknown>();
-        const componentMap = new Map<number, Component>();
+        const componentMap = new Map<number, FormComponent>();
 
         for (const component of components) {
-          const numericId = Number(component.id);
-          if (!Number.isNaN(numericId)) {
+          const numericId = toNumericId(component.id);
+          if (numericId !== null) {
             componentMap.set(numericId, component);
           }
         }
 
         for (const component of components) {
-          const numericId = Number(component.id);
-          if (Number.isNaN(numericId)) continue;
+          const numericId = toNumericId(component.id);
+          if (numericId === null) continue;
 
           const entry = answerEntries.find(
             (candidate) => candidate.componentId === numericId
@@ -455,7 +529,10 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
           const { ok, value, error } = validateAnswer(component, rawValue);
 
           if (!ok) {
-            return reply.status(400).send({ error });
+            return sendReply(reply, 400, {
+              message: error ?? "Answer failed validation.",
+              value: { componentId: component.id },
+            });
           }
 
           if (value !== undefined) {
@@ -532,14 +609,16 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
           answersObject[String(componentId)] = value;
         }
 
-        return reply.status(201).send({
+        return sendReply(reply, 201, {
           message: "Form submitted successfully.",
-          submission: {
-            id: submissionRow.id,
-            form_id: parsedId,
-            respondent_id: submitterId,
-            submitted_at: submissionRow.created_at.toISOString(),
-            answers: answersObject,
+          value: {
+            submission: {
+              id: submissionRow.id,
+              form_id: parsedId,
+              respondent_id: submitterId,
+              submitted_at: submissionRow.created_at.toISOString(),
+              answers: answersObject,
+            },
           },
         });
       } catch (error) {
@@ -549,9 +628,9 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
 
         fastify.log.error({ err: error }, "Form submission error:");
 
-        return reply.status(500).send({
-          error: "Failed to submit form.",
-          details: error instanceof Error ? error.message : String(error),
+        return sendReply(reply, 500, {
+          message: "Failed to submit form.",
+          value: error instanceof Error ? error.message : String(error),
         });
       } finally {
         client.release();
@@ -560,11 +639,13 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
       return;
     }
 
-    const componentIds = new Set(
-      components
-        .map((component) => component.id)
-        .filter((id): id is number => typeof id === "number")
-    );
+    const componentIds = new Set<number>();
+    for (const component of components) {
+      const numericId = toNumericId(component.id);
+      if (numericId !== null) {
+        componentIds.add(numericId);
+      }
+    }
 
     const unknownAnswerError = ensureAllAnswersReferenced(
       answerEntries,
@@ -572,27 +653,34 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
     );
 
     if (unknownAnswerError) {
-      return reply.status(400).send({ error: unknownAnswerError });
+      return sendReply(reply, 400, {
+        message: unknownAnswerError,
+        value: null,
+      });
     }
 
     const sanitizedAnswers = new Map<number, unknown>();
 
     for (const component of components) {
-      if (typeof component.id !== "number") continue;
+      const numericId = toNumericId(component.id);
+      if (numericId === null) continue;
 
       const entry = answerEntries.find(
-        (candidate) => candidate.componentId === component.id
+        (candidate) => candidate.componentId === numericId
       );
 
       const rawValue = entry?.value;
       const { ok, value, error } = validateAnswer(component, rawValue);
 
       if (!ok) {
-        return reply.status(400).send({ error });
+        return sendReply(reply, 400, {
+          message: error ?? "Answer failed validation.",
+          value: { componentId: component.id },
+        });
       }
 
       if (value !== undefined) {
-        sanitizedAnswers.set(component.id, value);
+        sanitizedAnswers.set(numericId, value);
       }
     }
 
@@ -613,10 +701,12 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
     existing.push(response);
     testResponsesStore.set(parsedId, existing);
 
-    return reply.status(201).send({
+    return sendReply(reply, 201, {
       message: "Form submitted successfully (test mode).",
-      submission: response,
-      totalSubmissions: existing.length,
+      value: {
+        submission: response,
+        totalSubmissions: existing.length,
+      },
     });
   });
 }

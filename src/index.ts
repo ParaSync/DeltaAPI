@@ -1,21 +1,21 @@
 
 
-
 import Fastify from 'fastify';
 import { FastifyReply, FastifyRequest } from 'fastify';
 import fastifyFirebase from 'fastify-firebase';
 import firebasePrivateKeyJson from '../neuron-delta-firebase-adminsdk-fbsvc-e748a310fb.json';
 import authRoutes from './routes/auth';
 import uploadRoutes from './routes/upload';
-import componentRoutes from './api/form/inputs/create';
-import createFormRoutes from "./api/form/create";
-import listFormRoutes from "./api/form/list";
-import deleteFormRoutes from "./api/form/delete/[formID]";
-import { BodyType } from './models/interfaces';
-import answerFormRoutes from "./api/form/answer/[formID]";
-import clearFormRoutes from "./api/form/clear/[formID]";
 import componentRoutes from './routes/components';
 import { BodyType } from './models/routes';
+import createFormRoutes from "./api/form/create.js";
+import listFormRoutes from "./api/form/list.js";
+import formAnswerRoutes from "./api/form/answer/[formID].js";
+import formClearRoutes from "./api/form/clear/[formID].js";
+import formDeleteRoutes from "./api/form/delete/[formID].js";
+import inputCreateRoutes from "./api/form/inputs/create.js";
+
+
 
 const fastify = Fastify({
   logger: {
@@ -32,9 +32,11 @@ fastify.register(uploadRoutes);
 fastify.register(componentRoutes);
 fastify.register(createFormRoutes);
 fastify.register(listFormRoutes);
-fastify.register(deleteFormRoutes);
-fastify.register(answerFormRoutes);
-fastify.register(clearFormRoutes, { prefix: "/api/form" });
+fastify.register(formAnswerRoutes);
+fastify.register(formClearRoutes, { prefix: '/api/form' });
+fastify.register(formDeleteRoutes);
+fastify.register(inputCreateRoutes);
+
 
 // Authentication hook
 fastify.addHook(

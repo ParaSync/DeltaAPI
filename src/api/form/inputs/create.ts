@@ -1,244 +1,164 @@
 import { FastifyInstance } from "fastify";
 import "dotenv/config";
-import { Component, ComponentType } from "../../../models/types.js";
-import { pool } from '../../../lib/pg_pool';
-
+import { pool } from "../../../lib/pg_pool.js";
+import { ReplyPayload } from "../../../models/routes.js";
+import { ComponentType } from "../../../models/components.js";
 
 const isTestEnvironment = process.env.NODE_ENV === "test";
 
-const ALLOWED_COMPONENT_TYPES: ComponentType[] = [
-  "button",
-  "checkbox",
-  "radio",
-  "text",
-  "number",
-  "select",
-  "datetime",
-  "file",
-];
-const ALLOWED_COMPONENT_TYPES_SET = new Set<ComponentType>(ALLOWED_COMPONENT_TYPES);
+type InputComponentBody = {
+  formId?: unknown;
+  type?: unknown;
+  name?: unknown;
+  properties?: unknown;
+};
 
-const testComponentsStore = new Map<number, Component[]>();
+type StoredInputComponent = {
+  id: string;
+  formId: string;
+  type: ComponentType;
+  name: string;
+  properties: Record<string, unknown>;
+};
+
+type ValidationResult =
+  | {
+      ok: true;
+      value: {
+        formId: number;
+        type: ComponentType;
+        name: string;
+        properties: Record<string, unknown>;
+      };
+    }
+  | {
+      ok: false;
+      httpStatus: number;
+      payload: ReplyPayload;
+    };
+
+const ALLOWED_TYPES: ComponentType[] = ["image", "label", "input", "table"];
+const DEFAULT_TYPE: ComponentType = "input";
+
+const testInputsStore = new Map<string, StoredInputComponent[]>();
 let testComponentIdCounter = 1;
 
-function isPlainObject(value: unknown): value is Record<string, any> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
+const sendReply = (reply: any, status: number, payload: ReplyPayload) =>
+  reply.status(status).send(payload);
 
-function validateCommonProperties(props: Record<string, any>): string | null {
-  if ("label" in props && typeof props.label !== "string") {
-    return "Property 'label' must be a string.";
-  }
-  if ("placeholder" in props && typeof props.placeholder !== "string") {
-    return "Property 'placeholder' must be a string.";
-  }
-  if ("required" in props && typeof props.required !== "boolean") {
-    return "Property 'required' must be a boolean.";
-  }
-  if ("order" in props && typeof props.order !== "number") {
-    return "Property 'order' must be a number.";
-  }
-  return null;
-}
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
 
-function validateOptionsArray(
-  options: unknown,
-  minLength: number,
-  componentType: ComponentType
-): string | null {
-  if (!Array.isArray(options) || options.length < minLength) {
-    return `${componentType} components require an 'options' array with at least ${minLength} entries.`;
-  }
+const toComponentType = (candidate: unknown): ComponentType =>
+  typeof candidate === "string" && ALLOWED_TYPES.includes(candidate as ComponentType)
+    ? (candidate as ComponentType)
+    : DEFAULT_TYPE;
 
-  const isValidOption = (option: unknown) =>
-    typeof option === "string" ||
-    (isPlainObject(option) &&
-      typeof option.label === "string" &&
-      typeof option.value === "string");
+const normaliseComponentRow = (row: any): StoredInputComponent => ({
+  id: String(row?.id ?? ""),
+  formId: String(row?.form_id ?? row?.formId ?? ""),
+  type: toComponentType(row?.type),
+  name: typeof row?.name === "string" ? row.name : "",
+  properties: isPlainObject(row?.properties) ? row.properties : {},
+});
 
-  if (!options.every(isValidOption)) {
-    return `${componentType} component options must be strings or objects with 'label' and 'value' strings.`;
+const validateBody = (body: InputComponentBody): ValidationResult => {
+  if (!isPlainObject(body)) {
+    return {
+      ok: false,
+      httpStatus: 400,
+      payload: { message: "Request body must be a JSON object.", value: null },
+    };
   }
 
-  return null;
-}
-
-function validateComponentProperties(
-  type: ComponentType,
-  props: Record<string, any>
-): string | null {
-  const commonError = validateCommonProperties(props);
-  if (commonError) return commonError;
-
-  switch (type) {
-    case "button": {
-      if (typeof props.label !== "string" && typeof props.text !== "string") {
-        return "Button components require a 'label' or 'text' string.";
-      }
-      if ("action" in props && typeof props.action !== "string") {
-        return "Button property 'action' must be a string when provided.";
-      }
-      return null;
-    }
-
-    case "checkbox": {
-      const error = validateOptionsArray(props.options, 1, type);
-      if (error) return error;
-      if ("maxSelections" in props && typeof props.maxSelections !== "number") {
-        return "Checkbox property 'maxSelections' must be a number.";
-      }
-      return null;
-    }
-
-    case "radio": {
-      const error = validateOptionsArray(props.options, 2, type);
-      if (error) return error;
-      return null;
-    }
-
-    case "select": {
-      const error = validateOptionsArray(props.options, 1, type);
-      if (error) return error;
-      if ("multiple" in props && typeof props.multiple !== "boolean") {
-        return "Select property 'multiple' must be a boolean.";
-      }
-      return null;
-    }
-
-    case "text": {
-      if ("defaultValue" in props && typeof props.defaultValue !== "string") {
-        return "Text property 'defaultValue' must be a string.";
-      }
-      if ("minLength" in props && typeof props.minLength !== "number") {
-        return "Text property 'minLength' must be a number.";
-      }
-      if ("maxLength" in props && typeof props.maxLength !== "number") {
-        return "Text property 'maxLength' must be a number.";
-      }
-      if (
-        typeof props.minLength === "number" &&
-        typeof props.maxLength === "number" &&
-        props.minLength > props.maxLength
-      ) {
-        return "Text property 'minLength' cannot be greater than 'maxLength'.";
-      }
-      return null;
-    }
-
-    case "number": {
-      const numericFields = ["defaultValue", "min", "max", "step"] as const;
-      for (const field of numericFields) {
-        if (field in props && typeof props[field] !== "number") {
-          return `Number property '${field}' must be a number.`;
-        }
-      }
-      if (
-        typeof props.min === "number" &&
-        typeof props.max === "number" &&
-        props.min > props.max
-      ) {
-        return "Number property 'min' cannot be greater than 'max'.";
-      }
-      if ("step" in props && props.step <= 0) {
-        return "Number property 'step' must be greater than 0.";
-      }
-      return null;
-    }
-
-    case "datetime": {
-      const datetimeFields = ["defaultValue", "min", "max"] as const;
-      for (const field of datetimeFields) {
-        if (field in props) {
-          if (typeof props[field] !== "string") {
-            return `Datetime property '${field}' must be an ISO date string.`;
-          }
-          const dateValue = Date.parse(props[field]);
-          if (Number.isNaN(dateValue)) {
-            return `Datetime property '${field}' must be a valid ISO date string.`;
-          }
-        }
-      }
-      if (
-        typeof props.min === "string" &&
-        typeof props.max === "string" &&
-        Date.parse(props.min) > Date.parse(props.max)
-      ) {
-        return "Datetime property 'min' cannot be later than 'max'.";
-      }
-      return null;
-    }
-
-    case "file": {
-      if (
-        "accept" in props &&
-        (!Array.isArray(props.accept) ||
-          props.accept.some((item: unknown) => typeof item !== "string"))
-      ) {
-        return "File property 'accept' must be an array of MIME type strings.";
-      }
-      if (
-        "maxSizeMb" in props &&
-        (typeof props.maxSizeMb !== "number" || props.maxSizeMb <= 0)
-      ) {
-        return "File property 'maxSizeMb' must be a positive number.";
-      }
-      return null;
-    }
-
-    default:
-      return null;
+  const formIdNumber = Number(body.formId);
+  if (!Number.isInteger(formIdNumber) || formIdNumber <= 0) {
+    return {
+      ok: false,
+      httpStatus: 400,
+      payload: { message: "A valid numeric formId is required.", value: null },
+    };
   }
-}
+
+  const resolvedType = toComponentType(body.type);
+  if (body.type !== undefined && resolvedType !== body.type) {
+    return {
+      ok: false,
+      httpStatus: 400,
+      payload: {
+        message: "Invalid component type.",
+        value: { allowedTypes: ALLOWED_TYPES },
+      },
+    };
+  }
+
+  const resolvedName =
+    typeof body.name === "string" ? body.name : body.name === undefined ? "" : null;
+  if (resolvedName === null) {
+    return {
+      ok: false,
+      httpStatus: 400,
+      payload: { message: "Component name must be a string.", value: null },
+    };
+  }
+
+  const resolvedProperties = isPlainObject(body.properties) ? body.properties : {};
+  if (body.properties !== undefined && !isPlainObject(body.properties)) {
+    return {
+      ok: false,
+      httpStatus: 400,
+      payload: {
+        message: "Component properties must be a JSON object.",
+        value: null,
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    value: {
+      formId: formIdNumber,
+      type: resolvedType,
+      name: resolvedName,
+      properties: resolvedProperties,
+    },
+  };
+};
 
 async function inputCreateRoutes(fastify: FastifyInstance) {
-  // Create a component (auto-create form if needed)
-  fastify.post("/components", async (req, reply) => {
-    const body = req.body as Component;
-
-    if (!body.form_id || !body.type) {
-      return reply.status(400).send({ error: "Missing form_id or type" });
+  fastify.post("/api/form/inputs/create", async (req, reply) => {
+    const validation = validateBody(req.body as InputComponentBody);
+    if (!validation.ok) {
+      return sendReply(reply, validation.httpStatus, validation.payload);
     }
 
-    if (!ALLOWED_COMPONENT_TYPES_SET.has(body.type)) {
-      return reply.status(400).send({
-        error: "Invalid component type",
-        validTypes: ALLOWED_COMPONENT_TYPES,
+    const { formId, type, name, properties } = validation.value;
+
+    if (isTestEnvironment) {
+      const formKey = String(formId);
+      const created: StoredInputComponent = {
+        id: String(testComponentIdCounter++),
+        formId: formKey,
+        type,
+        name,
+        properties,
+      };
+
+      const existing = testInputsStore.get(formKey) ?? [];
+      existing.push(created);
+      testInputsStore.set(formKey, existing);
+
+      return sendReply(reply, 201, {
+        message: "Component created (test mode).",
+        value: created,
       });
     }
 
-    if (body.properties === undefined) {
-      body.properties = {};
-    }
-
-    if (!isPlainObject(body.properties)) {
-      return reply
-        .status(400)
-        .send({ error: "Component properties must be an object." });
-    }
-
-    const validationError = validateComponentProperties(
-      body.type,
-      body.properties
-    );
-    if (validationError) {
-      return reply.status(400).send({ error: validationError });
-    }
-
-    const sanitizedProperties = { ...body.properties };
-
-    if (isTestEnvironment) {
-      const formId = body.form_id;
-      const existing = testComponentsStore.get(formId) ?? [];
-      const newComponent: Component = {
-        id: testComponentIdCounter++,
-        form_id: formId,
-        type: body.type,
-        name: body.name,
-        properties: sanitizedProperties,
-      };
-      existing.push(newComponent);
-      testComponentsStore.set(formId, existing);
-      return reply.send(newComponent);
+    if (!pool) {
+      return sendReply(reply, 500, {
+        message: "Database connection is not available.",
+        value: null,
+      });
     }
 
     const client = await pool.connect();
@@ -246,58 +166,44 @@ async function inputCreateRoutes(fastify: FastifyInstance) {
     try {
       await client.query("BEGIN");
 
-      // Check if form exists
-      const formCheck = await client.query(
-        "SELECT id FROM forms WHERE id = $1",
-        [body.form_id]
+      const formLookup = await client.query(
+        "SELECT id FROM forms WHERE id = $1;",
+        [formId]
       );
 
-      // Auto-create a form if it doesn’t exist
-      let formId = body.form_id;
-      if (formCheck.rowCount === 0) {
-        const newForm = await client.query(
-          `INSERT INTO forms (title, user_id, created_at)
-           VALUES ($1, gen_random_uuid(), NOW())
-           RETURNING id;`,
-          [`Auto-created Form #${formId}`]
-        );
-        formId = newForm.rows[0].id;
+      if (formLookup.rowCount === 0) {
+        await client.query("ROLLBACK");
+        return sendReply(reply, 404, {
+          message: "Form not found.",
+          value: null,
+        });
       }
 
-      // Insert the new component
-      const query = `
-        INSERT INTO components (form_id, type, name, properties)
-        VALUES ($1, $2, $3, $4)
-        RETURNING *;
-      `;
-      const values = [formId, body.type, body.name, sanitizedProperties];
-      const result = await client.query(query, values);
+      const insertResult = await client.query(
+        `
+          INSERT INTO components (form_id, properties, name, type)
+          VALUES ($1, $2, $3, $4)
+          RETURNING id, form_id, name, type, properties;
+        `,
+        [formId, properties, name || null, type]
+      );
 
       await client.query("COMMIT");
-      return reply.send(result.rows[0]);
-    } catch (err: any) {
+
+      return sendReply(reply, 201, {
+        message: "Component created successfully.",
+        value: normaliseComponentRow(insertResult.rows[0]),
+      });
+    } catch (error) {
       await client.query("ROLLBACK");
-      fastify.log.error("Component creation error:", err);
-      return reply.status(500).send({ error: err.message });
+      fastify.log.error({ err: error }, "Component creation error");
+      return sendReply(reply, 500, {
+        message: "Failed to create component.",
+        value: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       client.release();
     }
-  });
-
-  // Get all components for a form
-  fastify.get("/forms/:id/components", async (req, reply) => {
-    const { id } = req.params as { id: string };
-    const formId = Number(id);
-
-    if (isTestEnvironment) {
-      return reply.send(testComponentsStore.get(formId) ?? []);
-    }
-
-    const result = await pool.query(
-      "SELECT * FROM components WHERE form_id = $1;",
-      [formId]
-    );
-    return reply.send(result.rows);
   });
 }
 

@@ -7,9 +7,9 @@ const unique = (prefix: string) =>
   `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
 type CreatedForm = {
-  id: number;
+  id: string;
   components: Array<{
-    id: number;
+    id: string;
     type: string;
     properties: Record<string, any>;
   }>;
@@ -17,7 +17,7 @@ type CreatedForm = {
 
 const buildFormPayload = () => ({
   title: unique("ActionsForm"),
-  user_id: TEST_USER_ID,
+  userId: TEST_USER_ID, // align with API (userId)
   components: [
     {
       type: "text",
@@ -72,7 +72,11 @@ const createForm = async (): Promise<CreatedForm> => {
   });
 
   expect(response.status).toBe(201);
-  return response.json();
+
+  const json = await response.json();
+  const created = json?.value ?? json;
+  // created.id and component ids are strings per models
+  return created as CreatedForm;
 };
 
 const toNumericId = (id: number | string) => Number(id);
@@ -81,10 +85,24 @@ describe("Form Actions", () => {
   test("Submit Button – sends completed form data", async () => {
     const form = await createForm();
 
-    const textComponent = form.components.find((c) => c.type === "text")!;
-    const numberComponent = form.components.find((c) => c.type === "number")!;
-    const selectComponent = form.components.find((c) => c.type === "select")!;
-    const checkboxComponent = form.components.find((c) => c.type === "checkbox")!;
+    // locate components by their label (stable)
+    const textComponent = form.components.find(
+      (c) => c.properties?.label === "Full Name"
+    )!;
+    const numberComponent = form.components.find(
+      (c) => c.properties?.label === "Age"
+    )!;
+    const selectComponent = form.components.find(
+      (c) => c.properties?.label === "Department"
+    )!;
+    const checkboxComponent = form.components.find(
+      (c) => c.properties?.label === "Interests"
+    )!;
+
+    expect(textComponent).toBeTruthy();
+    expect(numberComponent).toBeTruthy();
+    expect(selectComponent).toBeTruthy();
+    expect(checkboxComponent).toBeTruthy();
 
     const submitResponse = await fetch(route(`api/form/answer/${form.id}`), {
       method: "POST",
@@ -107,20 +125,23 @@ describe("Form Actions", () => {
 
     const submitJson = await submitResponse.json();
     expect(submitJson.message).toMatch(/Form submitted successfully/);
-    expect(Number(submitJson.submission.form_id)).toBe(Number(form.id));
-    expect(
-      submitJson.submission.answers[String(toNumericId(textComponent.id))]
-    ).toBe("Alice Example");
-    expect(
-      submitJson.submission.answers[String(toNumericId(numberComponent.id))]
-    ).toBe(28);
+
+    const submission = submitJson?.value?.submission ?? null;
+    expect(submission).toBeTruthy();
+    expect(Number(submission.form_id)).toBe(Number(form.id));
+    expect(submission.answers[String(toNumericId(textComponent.id))]).toBe(
+      "Alice Example"
+    );
+    expect(submission.answers[String(toNumericId(numberComponent.id))]).toBe(
+      28
+    );
   });
 
   test("Reset/Clear – returns default component values", async () => {
     const form = await createForm();
 
+    
     const clearResponse = await fetch(route(`api/form/clear/${form.id}`), {
-
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
@@ -129,24 +150,27 @@ describe("Form Actions", () => {
     expect(clearResponse.status).toBe(200);
 
     const clearJson = await clearResponse.json();
-    expect(Number(clearJson.formId)).toBe(Number(form.id));
+    // API returns { message, value: { formId, clearedValues } }
+    const value = clearJson?.value ?? clearJson;
+    expect(String(value.formId)).toBe(String(form.id));
 
-    const cleared = clearJson.clearedValues as Record<string, unknown>;
+    const cleared = value.clearedValues as Record<string, unknown>;
     form.components.forEach((component) => {
       const key = String(toNumericId(component.id));
       expect(cleared).toHaveProperty(key);
 
-      switch (component.type) {
-        case "text":
+      const label = component.properties?.label;
+      switch (label) {
+        case "Full Name":
           expect(cleared[key]).toBe("John Doe");
           break;
-        case "number":
+        case "Age":
           expect(cleared[key]).toBe(30);
           break;
-        case "select":
+        case "Department":
           expect(cleared[key]).toBe("Marketing");
           break;
-        case "checkbox":
+        case "Interests":
           expect(cleared[key]).toEqual(["Newsletters"]);
           break;
         default:

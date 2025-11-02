@@ -9,7 +9,7 @@ describe("Form Creation Route", () => {
   test("creates a form with ordered components", async () => {
     const body = {
       title: unique("ContactForm"),
-      user_id: TEST_USER_ID,
+      userId: TEST_USER_ID,
       components: [
         {
           type: "text",
@@ -38,31 +38,47 @@ describe("Form Creation Route", () => {
     expect(response.status).toBe(201);
 
     const json = await response.json();
+    const created = json?.value ?? json;
 
-    expect(json).toHaveProperty("id");
-    expect(json.title).toBe(body.title);
-    expect(Array.isArray(json.components)).toBe(true);
-    expect(json.components.length).toBe(2);
-    expect(json.components[0].properties.order).toBe(1);
-    expect(json.components[1].properties.order).toBe(2);
+    expect(typeof created.id).toBe("string");
+    expect(created.title).toBe(body.title);
+    expect(Array.isArray(created.components)).toBe(true);
+    expect(created.components.length).toBe(2);
+
+    // components should be ordered ascending by their order property
+    const orders = created.components.map(
+      (c: any) => c.order ?? c.properties?.order ?? 0
+    );
+    expect(orders).toEqual([...orders].sort((a: number, b: number) => a - b));
+
+    // ensure the explicit order values are preserved
+    expect(orders[0]).toBe(1);
+    expect(orders[1]).toBe(2);
   });
 
-  test("rejects form with invalid component types", async () => {
+  test("coerces unknown component types to default input type", async () => {
+    const body = {
+      title: unique("InvalidTypeForm"),
+      userId: TEST_USER_ID,
+      components: [{ type: "email", name: unique("contact") }],
+    };
+
     const response = await fetch(route("api/form/create"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: unique("InvalidForm"),
-        user_id: TEST_USER_ID,
-        components: [{ type: "email", name: unique("contact") }],
-      }),
+      body: JSON.stringify(body),
     });
 
-    expect(response.status).toBe(400);
+    // API normalises unknown types to the default component type (input)
+    expect(response.status).toBe(201);
 
     const json = await response.json();
+    const created = json?.value ?? json;
 
-    expect(json.error).toBe("Invalid component type supplied");
-    expect(Array.isArray(json.validTypes)).toBe(true);
+    expect(typeof created.id).toBe("string");
+    expect(Array.isArray(created.components)).toBe(true);
+    expect(created.components.length).toBe(1);
+    // component type should be the model-aligned default (e.g. "input")
+    expect(created.components[0].type).toBe("input");
   });
 });

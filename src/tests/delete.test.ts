@@ -12,10 +12,10 @@ const createForm = async () => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       title: unique("DeleteTestForm"),
-      user_id: TEST_USER_ID,
+      userId: TEST_USER_ID, // API expects userId (not user_id)
       components: [
         {
-          type: "radio",
+          type: "radio", // will be normalised by the API (defaults to 'input')
           name: unique("choice"),
           properties: {
             label: "Pick one",
@@ -28,7 +28,10 @@ const createForm = async () => {
   });
 
   expect(response.status).toBe(201);
-  return response.json();
+  const json = await response.json();
+  // API returns { message, value: <createdForm> }
+  const createdForm = json?.value ?? json;
+  return createdForm;
 };
 
 describe("Form Deletion Route", () => {
@@ -44,7 +47,10 @@ describe("Form Deletion Route", () => {
     expect(deleteResponse.status).toBe(400);
 
     const deleteJson = await deleteResponse.json();
-    expect(deleteJson.error).toBe("Confirmation required before deleting form.");
+    // API uses ReplyPayload { message, value }
+    expect(deleteJson.message).toBe("Confirmation required before deleting form.");
+    expect(deleteJson.value).toBeDefined();
+    expect(deleteJson.value.hint).toBeDefined();
   });
 
   test("deletes a form after confirmation", async () => {
@@ -59,7 +65,10 @@ describe("Form Deletion Route", () => {
     expect(deleteResponse.status).toBe(200);
 
     const deleteJson = await deleteResponse.json();
-    expect(deleteJson.message).toContain("Form deleted successfully");
-    expect(deleteJson.formId).toBe(form.id);
+    expect(typeof deleteJson.message).toBe("string");
+    expect(deleteJson.message).toContain("deleted");
+    // API returns value: { formId: "<id>" }
+    expect(deleteJson.value).toBeDefined();
+    expect(deleteJson.value.formId).toBe(String(form.id));
   });
 });
