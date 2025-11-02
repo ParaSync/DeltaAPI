@@ -56,7 +56,7 @@ export interface LabelProperties extends ComponentProperties {
 
 export interface InputProperties extends ComponentProperties {
   input: {
-    type: HTMLInputType;
+    type: HTMLInputType | 'select';
     placeholder?: string;
     value?: string;
     maxLength?: number;
@@ -72,6 +72,7 @@ export interface InputProperties extends ComponentProperties {
     height?: number;
     width?: number;
     autocomplete?: string; // on, off
+    choices?: string[];
   };
 }
 
