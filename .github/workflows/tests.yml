@@ -6,6 +6,17 @@ jobs:
   test:
     timeout-minutes: 60
     runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ env.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ env.SUPABASE_KEY }}
+      SUPABASE_BUCKET: ${{ env.SUPABASE_BUCKET }}
+      DATABASE_URL: ${{ env.DATABASE_URL }}
+      POSTGRES_URL: ${{ env.POSTGRES_URL }}
+      FIREBASE_SERVICE_ACCOUNT: ${{ env.FIREBASE_SERVICE_ACCOUNT }}
+      FIREBASE_CLIENT_CONFIG: ${{ env.FIREBASE_CLIENT_CONFIG }}
+      AWS_ACCESS_KEY_ID: ${{ env.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
+      AWS_BUCKET_NAME: ${{ env.AWS_BUCKET_NAME }}
     steps:
     - uses: actions/checkout@v4
     - uses: oven-sh/setup-bun@v2
