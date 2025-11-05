@@ -1,12 +1,12 @@
 import Fastify from 'fastify';
 import { FastifyReply, FastifyRequest } from 'fastify';
 import fastifyFirebase from 'fastify-firebase';
-import firebasePrivateKeyJson from '../neuron-delta-firebase-adminsdk-fbsvc-e748a310fb.json';
 import authRoutes from './routes/auth';
 import uploadRoutes from './routes/upload';
 import componentRoutes from './routes/components';
 import { BodyType } from './models/interfaces';
 import cors from '@fastify/cors';
+import 'dotenv/config';
 
 const fastify = Fastify({
   logger: {
@@ -18,7 +18,8 @@ const fastify = Fastify({
 });
 
 fastify.register(cors, { origin: true });
-fastify.register(fastifyFirebase, firebasePrivateKeyJson);
+const fastifyServiceAccountConfig = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT as string);
+fastify.register(fastifyFirebase, fastifyServiceAccountConfig);
 fastify.register(authRoutes);
 fastify.register(uploadRoutes);
 fastify.register(componentRoutes);
@@ -55,8 +56,8 @@ fastify.addHook(
 
 const start = async () => {
   try {
-    await fastify.listen({ port: 3000 });
-    console.log('Server running on http://localhost:3000');
+    await fastify.listen({ port: 3000, host: '0.0.0.0' });
+    console.log('Server running on http://0.0.0.0:3000');
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
