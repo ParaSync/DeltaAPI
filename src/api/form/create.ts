@@ -1,11 +1,14 @@
-import { FastifyInstance } from "fastify";
-import "dotenv/config";
-import { pool } from "../../lib/pg_pool.js";
-import { ReplyPayload } from "../../models/routes.js";
-import { Form } from "../../models/forms.js";
-import { ComponentType } from "../../models/components.js";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// TODO: remove the above
 
-const isTestEnvironment = process.env.NODE_ENV === "test";
+import { FastifyInstance } from 'fastify';
+import 'dotenv/config';
+import { pool } from '../../lib/pg_pool.js';
+import { ReplyPayload } from '../../models/routes.js';
+import { Form } from '../../models/forms.js';
+import { ComponentType } from '../../models/components.js';
+
+const isTestEnvironment = process.env.NODE_ENV === 'test';
 
 type CreateFormBody = {
   title?: unknown;
@@ -42,17 +45,17 @@ const testFormsStore = new Map<string, StoredForm>();
 let testFormIdCounter = 1;
 let testComponentIdCounter = 1;
 
-const ALLOWED_COMPONENT_TYPES: ComponentType[] = ["image", "label", "input", "table"];
-const DEFAULT_COMPONENT_TYPE: ComponentType = "input";
+const ALLOWED_COMPONENT_TYPES: ComponentType[] = ['image', 'label', 'input', 'table'];
+const DEFAULT_COMPONENT_TYPE: ComponentType = 'input';
 
 const sendReply = (reply: any, status: number, payload: ReplyPayload) =>
   reply.status(status).send(payload);
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === "object" && !Array.isArray(value);
+  value !== null && typeof value === 'object' && !Array.isArray(value);
 
 const toComponentType = (value: unknown): ComponentType => {
-  if (typeof value === "string" && ALLOWED_COMPONENT_TYPES.includes(value as ComponentType)) {
+  if (typeof value === 'string' && ALLOWED_COMPONENT_TYPES.includes(value as ComponentType)) {
     return value as ComponentType;
   }
 
@@ -60,11 +63,11 @@ const toComponentType = (value: unknown): ComponentType => {
 };
 
 const toComponentOrder = (candidate: unknown, fallback: number): number => {
-  if (typeof candidate === "number" && Number.isFinite(candidate)) {
+  if (typeof candidate === 'number' && Number.isFinite(candidate)) {
     return candidate;
   }
 
-  if (typeof candidate === "string" && candidate.trim() !== "") {
+  if (typeof candidate === 'string' && candidate.trim() !== '') {
     const parsed = Number(candidate);
     if (Number.isFinite(parsed)) {
       return parsed;
@@ -74,10 +77,7 @@ const toComponentOrder = (candidate: unknown, fallback: number): number => {
   return fallback;
 };
 
-const normaliseComponentInput = (
-  component: unknown,
-  index: number
-): NormalisedComponent | null => {
+const normaliseComponentInput = (component: unknown, index: number): NormalisedComponent | null => {
   if (!isPlainObject(component)) {
     return null;
   }
@@ -91,7 +91,7 @@ const normaliseComponentInput = (
     settings: rawSettings,
   } = component as CreateComponentInput;
 
-  const resolvedName = typeof name === "string" ? name : "";
+  const resolvedName = typeof name === 'string' ? name : '';
   const resolvedType = toComponentType(type);
   const resolvedOrder = toComponentOrder(order ?? formOrder, index);
 
@@ -104,7 +104,7 @@ const normaliseComponentInput = (
     ...settingsProperties,
   };
 
-  if (typeof type === "string" && !ALLOWED_COMPONENT_TYPES.includes(type as ComponentType)) {
+  if (typeof type === 'string' && !ALLOWED_COMPONENT_TYPES.includes(type as ComponentType)) {
     mergedProperties.inputType = type;
   }
 
@@ -122,7 +122,7 @@ const buildFormResponse = (
 ): StoredForm => ({
   id: String(formRow.id),
   title: formRow.title,
-  userId: formRow.user_id ?? "",
+  userId: formRow.user_id ?? '',
   createdAt: formRow.created_at.toISOString(),
   components,
 });
@@ -130,16 +130,14 @@ const buildFormResponse = (
 const buildComponentResponse = (row: any): StoredComponent => {
   const properties = isPlainObject(row?.properties) ? row.properties : {};
   const derivedOrder =
-    typeof properties.order === "number"
-      ? properties.order
-      : toComponentOrder(row?.order, 0);
+    typeof properties.order === 'number' ? properties.order : toComponentOrder(row?.order, 0);
 
   const resolvedType = toComponentType(row?.type);
 
   return {
-    id: String(row?.id ?? ""),
-    formId: String(row?.form_id ?? ""),
-    name: typeof row?.name === "string" ? row.name : "",
+    id: String(row?.id ?? ''),
+    formId: String(row?.form_id ?? ''),
+    name: typeof row?.name === 'string' ? row.name : '',
     type: resolvedType,
     order: derivedOrder,
     properties,
@@ -147,18 +145,18 @@ const buildComponentResponse = (row: any): StoredComponent => {
 };
 
 async function createFormRoutes(fastify: FastifyInstance) {
-  fastify.post("/api/form/create", async (req, reply) => {
+  fastify.post('/api/form/create', async (req, reply) => {
     const body = req.body as CreateFormBody;
-    const title = typeof body?.title === "string" ? body.title.trim() : "";
+    const title = typeof body?.title === 'string' ? body.title.trim() : '';
 
     if (!title) {
       return sendReply(reply, 400, {
-        message: "Form title is required.",
-        value: { field: "title" },
+        message: 'Form title is required.',
+        value: { field: 'title' },
       });
     }
 
-    const userId = typeof body?.userId === "string" ? body.userId : "";
+    const userId = typeof body?.userId === 'string' ? body.userId : '';
 
     const rawComponents = Array.isArray(body?.components) ? body.components : [];
     const normalisedComponents = rawComponents
@@ -170,13 +168,11 @@ async function createFormRoutes(fastify: FastifyInstance) {
       const formId = String(testFormIdCounter++);
       const createdAt = new Date();
 
-      const storedComponents: StoredComponent[] = normalisedComponents.map(
-        (component) => ({
-          ...component,
-          id: String(testComponentIdCounter++),
-          formId,
-        })
-      );
+      const storedComponents: StoredComponent[] = normalisedComponents.map((component) => ({
+        ...component,
+        id: String(testComponentIdCounter++),
+        formId,
+      }));
 
       const storedForm: StoredForm = {
         id: formId,
@@ -189,14 +185,14 @@ async function createFormRoutes(fastify: FastifyInstance) {
       testFormsStore.set(formId, storedForm);
 
       return sendReply(reply, 201, {
-        message: "Form created successfully (test mode).",
+        message: 'Form created successfully (test mode).',
         value: storedForm,
       });
     }
 
     if (!pool) {
       return sendReply(reply, 500, {
-        message: "Database connection is not configured.",
+        message: 'Database connection is not configured.',
         value: null,
       });
     }
@@ -204,7 +200,7 @@ async function createFormRoutes(fastify: FastifyInstance) {
     const client = await pool.connect();
 
     try {
-      await client.query("BEGIN");
+      await client.query('BEGIN');
 
       const formResult = await client.query<{
         id: number;
@@ -241,17 +237,17 @@ async function createFormRoutes(fastify: FastifyInstance) {
         createdComponents.push(buildComponentResponse(componentResult.rows[0]));
       }
 
-      await client.query("COMMIT");
+      await client.query('COMMIT');
 
       return sendReply(reply, 201, {
-        message: "Form created successfully.",
+        message: 'Form created successfully.',
         value: buildFormResponse(formRow, createdComponents),
       });
     } catch (error) {
-      await client.query("ROLLBACK");
-      fastify.log.error({ err: error }, "Form creation error");
+      await client.query('ROLLBACK');
+      fastify.log.error({ err: error }, 'Form creation error');
       return sendReply(reply, 500, {
-        message: "Failed to create form.",
+        message: 'Failed to create form.',
         value: error instanceof Error ? error.message : String(error),
       });
     } finally {

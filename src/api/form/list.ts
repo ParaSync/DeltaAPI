@@ -1,12 +1,15 @@
-import { FastifyInstance } from "fastify";
-import "dotenv/config";
-import { Form } from "../../models/forms.js";
-import { ReplyPayload } from "../../models/routes.js";
-import { ComponentType } from "../../models/components.js";
-import { getTestFormsSnapshot } from "./create";
-import { pool } from "../../lib/pg_pool.js";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// TODO: remove the above
 
-const isTestEnvironment = process.env.NODE_ENV === "test";
+import { FastifyInstance } from 'fastify';
+import 'dotenv/config';
+import { Form } from '../../models/forms.js';
+import { ReplyPayload } from '../../models/routes.js';
+import { ComponentType } from '../../models/components.js';
+import { getTestFormsSnapshot } from './create';
+import { pool } from '../../lib/pg_pool.js';
+
+const isTestEnvironment = process.env.NODE_ENV === 'test';
 
 type ListedComponent = {
   id: string;
@@ -21,25 +24,25 @@ type ListedForm = Form & {
   components: ListedComponent[];
 };
 
-const ALLOWED_TYPES: ComponentType[] = ["image", "label", "input", "table"];
+const ALLOWED_TYPES: ComponentType[] = ['image', 'label', 'input', 'table'];
 
 const sendReply = (reply: any, status: number, payload: ReplyPayload) =>
   reply.status(status).send(payload);
 
 const toComponentType = (candidate: unknown): ComponentType =>
-  typeof candidate === "string" && ALLOWED_TYPES.includes(candidate as ComponentType)
+  typeof candidate === 'string' && ALLOWED_TYPES.includes(candidate as ComponentType)
     ? (candidate as ComponentType)
-    : "input";
+    : 'input';
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === "object" && !Array.isArray(value);
+  value !== null && typeof value === 'object' && !Array.isArray(value);
 
 const sortComponents = (components: ListedComponent[]): ListedComponent[] =>
   components.slice().sort((a, b) => a.order - b.order);
 
 const toComponentOrder = (raw: unknown): number => {
-  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
-  if (typeof raw === "string" && raw.trim() !== "") {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+  if (typeof raw === 'string' && raw.trim() !== '') {
     const parsed = Number(raw);
     if (Number.isFinite(parsed)) return parsed;
   }
@@ -53,9 +56,9 @@ const normaliseComponent = (component: any): ListedComponent => {
 
   return {
     id: String(component.id),
-    formId: String(component.form_id ?? component.formId ?? ""),
+    formId: String(component.form_id ?? component.formId ?? ''),
     type: toComponentType(component.type),
-    name: typeof component.name === "string" ? component.name : "",
+    name: typeof component.name === 'string' ? component.name : '',
     order: toComponentOrder(orderSource),
     properties,
   };
@@ -63,34 +66,32 @@ const normaliseComponent = (component: any): ListedComponent => {
 
 const normaliseForm = (form: any): ListedForm => ({
   id: String(form.id),
-  title: typeof form.title === "string" ? form.title : "",
+  title: typeof form.title === 'string' ? form.title : '',
   userId:
-    typeof form.userId === "string"
+    typeof form.userId === 'string'
       ? form.userId
-      : typeof form.user_id === "string"
-      ? form.user_id
-      : "",
+      : typeof form.user_id === 'string'
+        ? form.user_id
+        : '',
   createdAt: new Date(form.createdAt ?? form.created_at ?? Date.now()).toISOString(),
   components: sortComponents(
-    Array.isArray(form.components)
-      ? form.components.map(normaliseComponent)
-      : []
+    Array.isArray(form.components) ? form.components.map(normaliseComponent) : []
   ),
 });
 
 async function listFormRoutes(fastify: FastifyInstance) {
-  fastify.get("/api/form/list", async (_req, reply) => {
+  fastify.get('/api/form/list', async (_req, reply) => {
     if (isTestEnvironment) {
       const forms = getTestFormsSnapshot().map(normaliseForm);
       return sendReply(reply, 200, {
-        message: "Forms retrieved successfully (test mode).",
+        message: 'Forms retrieved successfully.',
         value: { forms },
       });
     }
 
     if (!pool) {
       return sendReply(reply, 500, {
-        message: "Database connection is not available.",
+        message: 'Database connection is not available.',
         value: null,
       });
     }
@@ -112,7 +113,7 @@ async function listFormRoutes(fastify: FastifyInstance) {
       const forms: ListedForm[] = formsResult.rows.map((row) => ({
         id: String(row.id),
         title: row.title,
-        userId: row.user_id ?? "",
+        userId: row.user_id ?? '',
         createdAt: row.created_at.toISOString(),
         components: [],
       }));
@@ -148,17 +149,17 @@ async function listFormRoutes(fastify: FastifyInstance) {
       }
 
       return sendReply(reply, 200, {
-        message: "Forms retrieved successfully.",
+        message: 'Forms retrieved successfully.',
         value: { forms },
       });
     } catch (error) {
       fastify.log.error(
         `Form listing error: ${
-          error instanceof Error ? error.stack ?? error.message : String(error)
+          error instanceof Error ? (error.stack ?? error.message) : String(error)
         }`
       );
       return sendReply(reply, 500, {
-        message: "Failed to list forms.",
+        message: 'Failed to list forms.',
         value: error instanceof Error ? error.message : String(error),
       });
     } finally {

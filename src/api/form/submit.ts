@@ -1,9 +1,12 @@
-import { FastifyInstance } from "fastify";
-import "dotenv/config";
-import { ReplyPayload } from "../../models/routes.js";
-import { ComponentType } from "../../models/components.js";
-import { pool } from "../../lib/pg_pool.js";
-import { getTestFormsSnapshot } from "./create";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// TODO: remove the above
+
+import { FastifyInstance } from 'fastify';
+import 'dotenv/config';
+import { ReplyPayload } from '../../models/routes.js';
+import { ComponentType } from '../../models/components.js';
+import { pool } from '../../lib/pg_pool.js';
+import { getTestFormsSnapshot } from './create';
 
 type FormComponent = {
   id: number | string;
@@ -14,7 +17,7 @@ type FormComponent = {
   properties?: Record<string, unknown>;
 };
 
-const isTestEnvironment = process.env.NODE_ENV === "test";
+const isTestEnvironment = process.env.NODE_ENV === 'test';
 
 type AnswerEntry = {
   componentId: number;
@@ -34,7 +37,7 @@ type StoredResponse = {
   answers: Record<string, unknown>;
 };
 
-const ALLOWED_TYPES: ComponentType[] = ["image", "label", "input", "table"];
+const ALLOWED_TYPES: ComponentType[] = ['image', 'label', 'input', 'table'];
 
 const sendReply = (reply: any, status: number, payload: ReplyPayload) =>
   reply.status(status).send(payload);
@@ -43,19 +46,19 @@ const testResponsesStore = new Map<number, StoredResponse[]>();
 let testResponseIdCounter = 1;
 
 function isRecord(value: unknown): value is Record<string, any> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 function toComponentType(candidate: unknown): ComponentType {
-  if (typeof candidate === "string" && ALLOWED_TYPES.includes(candidate as ComponentType)) {
+  if (typeof candidate === 'string' && ALLOWED_TYPES.includes(candidate as ComponentType)) {
     return candidate as ComponentType;
   }
-  return "input";
+  return 'input';
 }
 
 function toNumericId(id: number | string | undefined): number | null {
-  if (typeof id === "number" && Number.isFinite(id)) return id;
-  if (typeof id === "string" && id.trim() !== "") {
+  if (typeof id === 'number' && Number.isFinite(id)) return id;
+  if (typeof id === 'string' && id.trim() !== '') {
     const parsed = Number(id);
     if (Number.isFinite(parsed)) return parsed;
   }
@@ -68,9 +71,9 @@ function extractOptionValues(options: unknown): string[] | null {
   const values: string[] = [];
 
   for (const option of options) {
-    if (typeof option === "string") {
+    if (typeof option === 'string') {
       values.push(option);
-    } else if (isRecord(option) && typeof option.value === "string") {
+    } else if (isRecord(option) && typeof option.value === 'string') {
       values.push(option.value);
     }
   }
@@ -79,8 +82,8 @@ function extractOptionValues(options: unknown): string[] | null {
 }
 
 function coerceNumber(raw: unknown): number | null {
-  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
-  if (typeof raw === "string" && raw.trim() !== "") {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+  if (typeof raw === 'string' && raw.trim() !== '') {
     const parsed = Number(raw);
     return Number.isFinite(parsed) ? parsed : null;
   }
@@ -88,21 +91,15 @@ function coerceNumber(raw: unknown): number | null {
 }
 
 function resolveInputKind(props: Record<string, any>): string {
-  const candidates = [
-    props.inputType,
-    props.fieldType,
-    props.type,
-    props.kind,
-    props.variant,
-  ];
+  const candidates = [props.inputType, props.fieldType, props.type, props.kind, props.variant];
 
   for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.trim() !== "") {
+    if (typeof candidate === 'string' && candidate.trim() !== '') {
       return candidate;
     }
   }
 
-  return "text";
+  return 'text';
 }
 
 function validateInputAnswer(
@@ -111,24 +108,24 @@ function validateInputAnswer(
   rawValue: unknown
 ): { ok: boolean; value?: unknown; error?: string } {
   const getNumberProp = (key: string): number | undefined =>
-    typeof props[key] === "number" ? props[key] : undefined;
+    typeof props[key] === 'number' ? props[key] : undefined;
 
   const getBooleanProp = (key: string): boolean | undefined =>
-    typeof props[key] === "boolean" ? props[key] : undefined;
+    typeof props[key] === 'boolean' ? props[key] : undefined;
 
   const getStringProp = (key: string): string | undefined =>
-    typeof props[key] === "string" ? props[key] : undefined;
+    typeof props[key] === 'string' ? props[key] : undefined;
 
   switch (inputKind) {
-    case "number": {
+    case 'number': {
       const coerced = coerceNumber(rawValue);
       if (coerced === null) {
-        return { ok: false, error: "Number answers must be numeric." };
+        return { ok: false, error: 'Number answers must be numeric.' };
       }
 
-      const min = getNumberProp("min");
-      const max = getNumberProp("max");
-      const step = getNumberProp("step");
+      const min = getNumberProp('min');
+      const max = getNumberProp('max');
+      const step = getNumberProp('step');
 
       if (min !== undefined && coerced < min) {
         return {
@@ -159,11 +156,11 @@ function validateInputAnswer(
       return { ok: true, value: coerced };
     }
 
-    case "checkbox": {
+    case 'checkbox': {
       if (!Array.isArray(rawValue)) {
         return {
           ok: false,
-          error: "Checkbox answers must be an array of selected values.",
+          error: 'Checkbox answers must be an array of selected values.',
         };
       }
 
@@ -171,25 +168,21 @@ function validateInputAnswer(
       if (!optionValues) {
         return {
           ok: false,
-          error: "Checkbox input is missing valid options.",
+          error: 'Checkbox input is missing valid options.',
         };
       }
 
       const selections = rawValue.map((entry) => String(entry));
-      const invalid = selections.filter(
-        (value) => !optionValues.includes(value)
-      );
+      const invalid = selections.filter((value) => !optionValues.includes(value));
 
       if (invalid.length > 0) {
         return {
           ok: false,
-          error: `Checkbox answer contains invalid option(s): ${invalid.join(
-            ", "
-          )}.`,
+          error: `Checkbox answer contains invalid option(s): ${invalid.join(', ')}.`,
         };
       }
 
-      const maxSelections = getNumberProp("maxSelections");
+      const maxSelections = getNumberProp('maxSelections');
       if (maxSelections !== undefined && selections.length > maxSelections) {
         return {
           ok: false,
@@ -200,37 +193,33 @@ function validateInputAnswer(
       return { ok: true, value: selections };
     }
 
-    case "radio":
-    case "select": {
+    case 'radio':
+    case 'select': {
       const optionValues = extractOptionValues(props.options);
       if (!optionValues) {
         return {
           ok: false,
-          error: "Select/radio input is missing valid options.",
+          error: 'Select/radio input is missing valid options.',
         };
       }
 
-      const multiple = getBooleanProp("multiple") === true;
+      const multiple = getBooleanProp('multiple') === true;
 
       if (multiple) {
         if (!Array.isArray(rawValue)) {
           return {
             ok: false,
-            error: "Multi-select answers must be an array of values.",
+            error: 'Multi-select answers must be an array of values.',
           };
         }
 
         const selections = rawValue.map((entry) => String(entry));
-        const invalid = selections.filter(
-          (value) => !optionValues.includes(value)
-        );
+        const invalid = selections.filter((value) => !optionValues.includes(value));
 
         if (invalid.length > 0) {
           return {
             ok: false,
-            error: `Select answer contains invalid option(s): ${invalid.join(
-              ", "
-            )}.`,
+            error: `Select answer contains invalid option(s): ${invalid.join(', ')}.`,
           };
         }
 
@@ -242,28 +231,28 @@ function validateInputAnswer(
       if (!optionValues.includes(selection)) {
         return {
           ok: false,
-          error: `Select answer must be one of: ${optionValues.join(", ")}.`,
+          error: `Select answer must be one of: ${optionValues.join(', ')}.`,
         };
       }
 
       return { ok: true, value: selection };
     }
 
-    case "datetime": {
-      if (typeof rawValue !== "string") {
-        return { ok: false, error: "Datetime answers must be ISO date strings." };
+    case 'datetime': {
+      if (typeof rawValue !== 'string') {
+        return { ok: false, error: 'Datetime answers must be ISO date strings.' };
       }
 
       const timestamp = Date.parse(rawValue);
       if (Number.isNaN(timestamp)) {
         return {
           ok: false,
-          error: "Datetime answer must be a valid ISO date string.",
+          error: 'Datetime answer must be a valid ISO date string.',
         };
       }
 
-      const minDate = getStringProp("min");
-      const maxDate = getStringProp("max");
+      const minDate = getStringProp('min');
+      const maxDate = getStringProp('max');
 
       if (minDate && Date.parse(rawValue) < Date.parse(minDate)) {
         return {
@@ -282,19 +271,16 @@ function validateInputAnswer(
       return { ok: true, value: rawValue };
     }
 
-    case "file": {
-      if (typeof rawValue !== "string") {
+    case 'file': {
+      if (typeof rawValue !== 'string') {
         return {
           ok: false,
-          error: "File answers must be strings (e.g., URLs or IDs).",
+          error: 'File answers must be strings (e.g., URLs or IDs).',
         };
       }
 
-      const maxSizeMb = getNumberProp("maxSizeMb");
-      if (
-        maxSizeMb !== undefined &&
-        rawValue.length / (1024 * 1024) > maxSizeMb
-      ) {
+      const maxSizeMb = getNumberProp('maxSizeMb');
+      if (maxSizeMb !== undefined && rawValue.length / (1024 * 1024) > maxSizeMb) {
         return {
           ok: false,
           error: `File answer exceeds max size of ${maxSizeMb} MB.`,
@@ -304,24 +290,24 @@ function validateInputAnswer(
       return { ok: true, value: rawValue };
     }
 
-    case "button": {
-      if (rawValue !== undefined && typeof rawValue !== "string") {
+    case 'button': {
+      if (rawValue !== undefined && typeof rawValue !== 'string') {
         return {
           ok: false,
-          error: "Button answers (if provided) must be strings.",
+          error: 'Button answers (if provided) must be strings.',
         };
       }
       return { ok: true, value: rawValue ?? null };
     }
 
-    case "text":
+    case 'text':
     default: {
-      if (typeof rawValue !== "string") {
-        return { ok: false, error: "Text answers must be strings." };
+      if (typeof rawValue !== 'string') {
+        return { ok: false, error: 'Text answers must be strings.' };
       }
       const trimmed = rawValue.trim();
-      const minLength = getNumberProp("minLength");
-      const maxLength = getNumberProp("maxLength");
+      const minLength = getNumberProp('minLength');
+      const maxLength = getNumberProp('maxLength');
 
       if (minLength !== undefined && trimmed.length < minLength) {
         return {
@@ -342,7 +328,10 @@ function validateInputAnswer(
   }
 }
 
-function validateAnswer(component: FormComponent, rawValue: unknown): {
+function validateAnswer(
+  component: FormComponent,
+  rawValue: unknown
+): {
   ok: boolean;
   value?: unknown;
   error?: string;
@@ -350,13 +339,12 @@ function validateAnswer(component: FormComponent, rawValue: unknown): {
   const props = isRecord(component.properties) ? component.properties : {};
   const resolvedType = toComponentType(component.type);
 
-  const required =
-    typeof props.required === "boolean" ? props.required : Boolean(props.required);
+  const required = typeof props.required === 'boolean' ? props.required : Boolean(props.required);
 
   const answerMissing =
     rawValue === undefined ||
     rawValue === null ||
-    (typeof rawValue === "string" && rawValue.trim() === "");
+    (typeof rawValue === 'string' && rawValue.trim() === '');
 
   if (answerMissing) {
     if (required) {
@@ -368,7 +356,7 @@ function validateAnswer(component: FormComponent, rawValue: unknown): {
     return { ok: true };
   }
 
-  if (resolvedType !== "input") {
+  if (resolvedType !== 'input') {
     return {
       ok: true,
       value: rawValue,
@@ -393,13 +381,13 @@ function ensureAllAnswersReferenced(
 }
 
 async function formSubmitRoutes(fastify: FastifyInstance) {
-  fastify.post("/api/form/answer/:formID", async (req, reply) => {
+  fastify.post('/api/form/answer/:formID', async (req, reply) => {
     const { formID } = req.params as { formID: string };
     const parsedId = Number(formID);
 
     if (!Number.isInteger(parsedId) || parsedId <= 0) {
       return sendReply(reply, 400, {
-        message: "Invalid form ID.",
+        message: 'Invalid form ID.',
         value: null,
       });
     }
@@ -408,27 +396,24 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
 
     if (!body || !Array.isArray(body.answers) || body.answers.length === 0) {
       return sendReply(reply, 400, {
-        message: "Answers payload is required.",
+        message: 'Answers payload is required.',
         value: {
-          details: "Provide an array of { componentId, value } entries.",
+          details: 'Provide an array of { componentId, value } entries.',
         },
       });
     }
 
     const answerEntries = body.answers;
-    const respondentId =
-      typeof body.respondent_id === "string" ? body.respondent_id : null;
+    const respondentId = typeof body.respondent_id === 'string' ? body.respondent_id : null;
 
     let components: FormComponent[] = [];
 
     if (isTestEnvironment) {
-      const form = getTestFormsSnapshot().find(
-        (storedForm) => Number(storedForm.id) === parsedId
-      );
+      const form = getTestFormsSnapshot().find((storedForm) => Number(storedForm.id) === parsedId);
 
       if (!form) {
         return sendReply(reply, 404, {
-          message: "Form not found.",
+          message: 'Form not found.',
           value: null,
         });
       }
@@ -440,7 +425,7 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
     } else {
       if (!pool) {
         return sendReply(reply, 500, {
-          message: "Database connection is not available.",
+          message: 'Database connection is not available.',
           value: null,
         });
       }
@@ -460,7 +445,7 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
 
         if (formResult.rowCount === 0) {
           return sendReply(reply, 404, {
-            message: "Form not found.",
+            message: 'Form not found.',
             value: null,
           });
         }
@@ -482,7 +467,7 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
 
         if (components.length === 0) {
           return sendReply(reply, 400, {
-            message: "Form has no components to answer.",
+            message: 'Form has no components to answer.',
             value: null,
           });
         }
@@ -495,10 +480,7 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
           }
         }
 
-        const unknownAnswerError = ensureAllAnswersReferenced(
-          answerEntries,
-          componentIds
-        );
+        const unknownAnswerError = ensureAllAnswersReferenced(answerEntries, componentIds);
 
         if (unknownAnswerError) {
           return sendReply(reply, 400, {
@@ -521,16 +503,14 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
           const numericId = toNumericId(component.id);
           if (numericId === null) continue;
 
-          const entry = answerEntries.find(
-            (candidate) => candidate.componentId === numericId
-          );
+          const entry = answerEntries.find((candidate) => candidate.componentId === numericId);
 
           const rawValue = entry?.value;
           const { ok, value, error } = validateAnswer(component, rawValue);
 
           if (!ok) {
             return sendReply(reply, 400, {
-              message: error ?? "Answer failed validation.",
+              message: error ?? 'Answer failed validation.',
               value: { componentId: component.id },
             });
           }
@@ -540,7 +520,7 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
           }
         }
 
-        await client.query("BEGIN");
+        await client.query('BEGIN');
         transactionStarted = true;
 
         let submitterId: string;
@@ -601,7 +581,7 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
           );
         }
 
-        await client.query("COMMIT");
+        await client.query('COMMIT');
         transactionStarted = false;
 
         const answersObject: Record<string, unknown> = {};
@@ -610,7 +590,7 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
         }
 
         return sendReply(reply, 201, {
-          message: "Form submitted successfully.",
+          message: 'Form submitted successfully.',
           value: {
             submission: {
               id: submissionRow.id,
@@ -623,20 +603,18 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
         });
       } catch (error) {
         if (transactionStarted) {
-          await client.query("ROLLBACK");
+          await client.query('ROLLBACK');
         }
 
-        fastify.log.error({ err: error }, "Form submission error:");
+        fastify.log.error({ err: error }, 'Form submission error:');
 
         return sendReply(reply, 500, {
-          message: "Failed to submit form.",
+          message: 'Failed to submit form.',
           value: error instanceof Error ? error.message : String(error),
         });
       } finally {
         client.release();
       }
-
-      return;
     }
 
     const componentIds = new Set<number>();
@@ -647,10 +625,7 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
       }
     }
 
-    const unknownAnswerError = ensureAllAnswersReferenced(
-      answerEntries,
-      componentIds
-    );
+    const unknownAnswerError = ensureAllAnswersReferenced(answerEntries, componentIds);
 
     if (unknownAnswerError) {
       return sendReply(reply, 400, {
@@ -665,16 +640,14 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
       const numericId = toNumericId(component.id);
       if (numericId === null) continue;
 
-      const entry = answerEntries.find(
-        (candidate) => candidate.componentId === numericId
-      );
+      const entry = answerEntries.find((candidate) => candidate.componentId === numericId);
 
       const rawValue = entry?.value;
       const { ok, value, error } = validateAnswer(component, rawValue);
 
       if (!ok) {
         return sendReply(reply, 400, {
-          message: error ?? "Answer failed validation.",
+          message: error ?? 'Answer failed validation.',
           value: { componentId: component.id },
         });
       }
@@ -702,7 +675,7 @@ async function formSubmitRoutes(fastify: FastifyInstance) {
     testResponsesStore.set(parsedId, existing);
 
     return sendReply(reply, 201, {
-      message: "Form submitted successfully (test mode).",
+      message: 'Form submitted successfully.',
       value: {
         submission: response,
         totalSubmissions: existing.length,

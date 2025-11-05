@@ -1,13 +1,16 @@
-import { FastifyInstance } from "fastify";
-import "dotenv/config";
-import { ReplyPayload } from "../../../models/routes.js";
-import { Form } from "../../../models/forms.js";
-import { ComponentType } from "../../../models/components.js";
-import { pool } from "../../../lib/pg_pool.js";
-import { getTestFormsSnapshot } from "../create";
-import formSubmitRoutes from "../submit";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// TODO: remove the above
 
-const isTestEnvironment = process.env.NODE_ENV === "test";
+import { FastifyInstance } from 'fastify';
+import 'dotenv/config';
+import { ReplyPayload } from '../../../models/routes.js';
+import { Form } from '../../../models/forms.js';
+import { ComponentType } from '../../../models/components.js';
+import { pool } from '../../../lib/pg_pool.js';
+import { getTestFormsSnapshot } from '../create';
+import formSubmitRoutes from '../submit';
+
+const isTestEnvironment = process.env.NODE_ENV === 'test';
 
 type AnswerableComponent = {
   id: string;
@@ -22,25 +25,25 @@ type AnswerableForm = Form & {
   components: AnswerableComponent[];
 };
 
-const ALLOWED_TYPES: ComponentType[] = ["image", "label", "input", "table"];
+const ALLOWED_TYPES: ComponentType[] = ['image', 'label', 'input', 'table'];
 
 const sendReply = (reply: any, status: number, payload: ReplyPayload) =>
   reply.status(status).send(payload);
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === "object" && !Array.isArray(value);
+  value !== null && typeof value === 'object' && !Array.isArray(value);
 
 const toComponentType = (candidate: unknown): ComponentType =>
-  typeof candidate === "string" && ALLOWED_TYPES.includes(candidate as ComponentType)
+  typeof candidate === 'string' && ALLOWED_TYPES.includes(candidate as ComponentType)
     ? (candidate as ComponentType)
-    : "input";
+    : 'input';
 
 const toComponentOrder = (rawOrder: unknown): number => {
-  if (typeof rawOrder === "number" && Number.isFinite(rawOrder)) {
+  if (typeof rawOrder === 'number' && Number.isFinite(rawOrder)) {
     return rawOrder;
   }
 
-  if (typeof rawOrder === "string" && rawOrder.trim() !== "") {
+  if (typeof rawOrder === 'string' && rawOrder.trim() !== '') {
     const parsed = Number(rawOrder);
     if (Number.isFinite(parsed)) return parsed;
   }
@@ -53,39 +56,44 @@ const sortComponents = (components: AnswerableComponent[]) =>
 
 const normaliseComponent = (raw: any): AnswerableComponent => {
   const properties = isPlainObject(raw?.properties) ? raw.properties : {};
-  const resolvedOrder = toComponentOrder(
-    raw?.order ?? properties.order ?? properties.orderBy
-  );
+  const resolvedOrder = toComponentOrder(raw?.order ?? properties.order ?? properties.orderBy);
 
   return {
-    id: String(raw?.id ?? ""),
-    formId: String(raw?.form_id ?? raw?.formId ?? ""),
+    id: String(raw?.id ?? ''),
+    formId: String(raw?.form_id ?? raw?.formId ?? ''),
     type: toComponentType(raw?.type),
-    name: typeof raw?.name === "string" ? raw.name : "",
+    name: typeof raw?.name === 'string' ? raw.name : '',
     order: resolvedOrder,
     properties,
   };
 };
 
 const buildFormResponse = (
-  rawForm: { id: unknown; title: unknown; user_id?: unknown; userId?: unknown; created_at?: unknown; createdAt?: unknown },
+  rawForm: {
+    id: unknown;
+    title: unknown;
+    user_id?: unknown;
+    userId?: unknown;
+    created_at?: unknown;
+    createdAt?: unknown;
+  },
   components: AnswerableComponent[]
 ): AnswerableForm => {
   const rawCreated = rawForm.created_at ?? rawForm.createdAt;
   const createdDate =
-    typeof rawCreated === "string" || typeof rawCreated === "number" || rawCreated instanceof Date
+    typeof rawCreated === 'string' || typeof rawCreated === 'number' || rawCreated instanceof Date
       ? new Date(rawCreated)
       : new Date();
 
   return {
-    id: String(rawForm.id ?? ""),
-    title: typeof rawForm.title === "string" ? rawForm.title : "",
+    id: String(rawForm.id ?? ''),
+    title: typeof rawForm.title === 'string' ? rawForm.title : '',
     userId:
-      typeof rawForm.user_id === "string"
+      typeof rawForm.user_id === 'string'
         ? rawForm.user_id
-        : typeof rawForm.userId === "string"
-        ? rawForm.userId
-        : "",
+        : typeof rawForm.userId === 'string'
+          ? rawForm.userId
+          : '',
     createdAt: createdDate.toISOString(),
     components: sortComponents(components),
   };
@@ -93,25 +101,23 @@ const buildFormResponse = (
 
 async function answerFormRoutes(fastify: FastifyInstance) {
   // GET - load form + components for answering (used by front-end to render questions)
-  fastify.get("/api/form/answer/:formID", async (req, reply) => {
+  fastify.get('/api/form/answer/:formID', async (req, reply) => {
     const { formID } = req.params as { formID: string };
     const parsedId = Number(formID);
 
     if (!Number.isInteger(parsedId) || parsedId <= 0) {
       return sendReply(reply, 400, {
-        message: "Invalid form ID.",
+        message: 'Invalid form ID.',
         value: null,
       });
     }
 
     if (isTestEnvironment) {
-      const form = getTestFormsSnapshot().find(
-        (storedForm) => Number(storedForm.id) === parsedId
-      );
+      const form = getTestFormsSnapshot().find((storedForm) => Number(storedForm.id) === parsedId);
 
       if (!form) {
         return sendReply(reply, 404, {
-          message: "Form not found.",
+          message: 'Form not found.',
           value: null,
         });
       }
@@ -125,14 +131,14 @@ async function answerFormRoutes(fastify: FastifyInstance) {
       };
 
       return sendReply(reply, 200, {
-        message: "Form loaded successfully (test mode).",
+        message: 'Form loaded successfully.',
         value: { form: responseForm },
       });
     }
 
     if (!pool) {
       return sendReply(reply, 500, {
-        message: "Database connection is not available.",
+        message: 'Database connection is not available.',
         value: null,
       });
     }
@@ -155,7 +161,7 @@ async function answerFormRoutes(fastify: FastifyInstance) {
 
       if (formResult.rowCount === 0) {
         return sendReply(reply, 404, {
-          message: "Form not found.",
+          message: 'Form not found.',
           value: null,
         });
       }
@@ -176,13 +182,13 @@ async function answerFormRoutes(fastify: FastifyInstance) {
       );
 
       return sendReply(reply, 200, {
-        message: "Form loaded successfully.",
+        message: 'Form loaded successfully.',
         value: { form: formResponse },
       });
     } catch (error) {
-      fastify.log.error({ err: error }, "Form fetch error");
+      fastify.log.error({ err: error }, 'Form fetch error');
       return sendReply(reply, 500, {
-        message: "Failed to fetch form.",
+        message: 'Failed to fetch form.',
         value: error instanceof Error ? error.message : String(error),
       });
     } finally {

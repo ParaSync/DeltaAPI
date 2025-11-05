@@ -1,11 +1,14 @@
-import { FastifyInstance } from "fastify";
-import "dotenv/config";
-import { ReplyPayload } from "../../../models/routes.js";
-import { ComponentType } from "../../../models/components.js";
-import { pool } from "../../../lib/pg_pool.js";
-import { getTestFormsSnapshot } from "../create";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// TODO: remove the above
 
-const isTestEnvironment = process.env.NODE_ENV === "test";
+import { FastifyInstance } from 'fastify';
+import 'dotenv/config';
+import { ReplyPayload } from '../../../models/routes.js';
+import { ComponentType } from '../../../models/components.js';
+import { pool } from '../../../lib/pg_pool.js';
+import { getTestFormsSnapshot } from '../create';
+
+const isTestEnvironment = process.env.NODE_ENV === 'test';
 
 type ComponentForClear = {
   id: number;
@@ -14,15 +17,15 @@ type ComponentForClear = {
   properties: Record<string, unknown>;
 };
 
-const ALLOWED_TYPES: ComponentType[] = ["image", "label", "input", "table"];
+const ALLOWED_TYPES: ComponentType[] = ['image', 'label', 'input', 'table'];
 
 const sendReply = (reply: any, status: number, payload: ReplyPayload) =>
   reply.status(status).send(payload);
 
 const toComponentType = (candidate: unknown): ComponentType =>
-  typeof candidate === "string" && ALLOWED_TYPES.includes(candidate as ComponentType)
+  typeof candidate === 'string' && ALLOWED_TYPES.includes(candidate as ComponentType)
     ? (candidate as ComponentType)
-    : "input";
+    : 'input';
 
 const buildClearedValues = (components: ComponentForClear[]) => {
   const clearedValues: Record<string, unknown> = {};
@@ -57,31 +60,29 @@ const normaliseComponent = (raw: any): ComponentForClear | null => {
   return {
     id,
     type: toComponentType(raw?.type),
-    name: typeof raw?.name === "string" ? raw.name : undefined,
+    name: typeof raw?.name === 'string' ? raw.name : undefined,
     properties,
   };
 };
 
 async function clearFormRoutes(fastify: FastifyInstance) {
-  fastify.post("/clear/:formID", async (req, reply) => {
+  fastify.post('/clear/:formID', async (req, reply) => {
     const { formID } = req.params as { formID: string };
     const parsedId = Number(formID);
 
     if (!Number.isInteger(parsedId) || parsedId <= 0) {
       return sendReply(reply, 400, {
-        message: "Invalid form ID.",
+        message: 'Invalid form ID.',
         value: null,
       });
     }
 
     if (isTestEnvironment) {
-      const form = getTestFormsSnapshot().find(
-        (storedForm) => Number(storedForm.id) === parsedId
-      );
+      const form = getTestFormsSnapshot().find((storedForm) => Number(storedForm.id) === parsedId);
 
       if (!form) {
         return sendReply(reply, 404, {
-          message: "Form not found.",
+          message: 'Form not found.',
           value: null,
         });
       }
@@ -91,7 +92,7 @@ async function clearFormRoutes(fastify: FastifyInstance) {
         .filter((component): component is ComponentForClear => component !== null);
 
       return sendReply(reply, 200, {
-        message: "Form fields reset to default values (test mode).",
+        message: 'Form fields reset to default values.',
         value: {
           formId: String(parsedId),
           clearedValues: buildClearedValues(components),
@@ -101,7 +102,7 @@ async function clearFormRoutes(fastify: FastifyInstance) {
 
     if (!pool) {
       return sendReply(reply, 500, {
-        message: "Database connection is not available.",
+        message: 'Database connection is not available.',
         value: null,
       });
     }
@@ -110,19 +111,16 @@ async function clearFormRoutes(fastify: FastifyInstance) {
     let transactionActive = false;
 
     try {
-      await client.query("BEGIN");
+      await client.query('BEGIN');
       transactionActive = true;
 
-      const formResult = await client.query(
-        `SELECT id FROM forms WHERE id = $1;`,
-        [parsedId]
-      );
+      const formResult = await client.query(`SELECT id FROM forms WHERE id = $1;`, [parsedId]);
 
       if (formResult.rowCount === 0) {
-        await client.query("ROLLBACK");
+        await client.query('ROLLBACK');
         transactionActive = false;
         return sendReply(reply, 404, {
-          message: "Form not found.",
+          message: 'Form not found.',
           value: null,
         });
       }
@@ -139,9 +137,7 @@ async function clearFormRoutes(fastify: FastifyInstance) {
 
       const components = componentsResult.rows
         .map(normaliseComponent)
-        .filter(
-          (component): component is ComponentForClear => component !== null
-        );
+        .filter((component): component is ComponentForClear => component !== null);
 
       const clearedValues = buildClearedValues(components);
 
@@ -155,16 +151,13 @@ async function clearFormRoutes(fastify: FastifyInstance) {
         [parsedId]
       );
 
-      await client.query(
-        `DELETE FROM submissions WHERE form_id = $1;`,
-        [parsedId]
-      );
+      await client.query(`DELETE FROM submissions WHERE form_id = $1;`, [parsedId]);
 
-      await client.query("COMMIT");
+      await client.query('COMMIT');
       transactionActive = false;
 
       return sendReply(reply, 200, {
-        message: "Form answers cleared successfully.",
+        message: 'Form answers cleared successfully.',
         value: {
           formId: String(parsedId),
           clearedValues,
@@ -172,14 +165,14 @@ async function clearFormRoutes(fastify: FastifyInstance) {
       });
     } catch (error) {
       if (transactionActive) {
-        await client.query("ROLLBACK");
+        await client.query('ROLLBACK');
       }
       fastify.log.error(
-        "Form clear error: " +
-          (error instanceof Error ? error.stack ?? error.message : String(error))
+        'Form clear error: ' +
+          (error instanceof Error ? (error.stack ?? error.message) : String(error))
       );
       return sendReply(reply, 500, {
-        message: "Failed to clear form answers.",
+        message: 'Failed to clear form answers.',
         value: error instanceof Error ? error.message : String(error),
       });
     } finally {
@@ -189,6 +182,6 @@ async function clearFormRoutes(fastify: FastifyInstance) {
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === "object" && !Array.isArray(value);
+  value !== null && typeof value === 'object' && !Array.isArray(value);
 
 export default clearFormRoutes;

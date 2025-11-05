@@ -1,10 +1,13 @@
-import { FastifyInstance } from "fastify";
-import "dotenv/config";
-import { pool } from "../../../lib/pg_pool.js";
-import { ReplyPayload } from "../../../models/routes.js";
-import { ComponentType } from "../../../models/components.js";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// TODO: remove the above
 
-const isTestEnvironment = process.env.NODE_ENV === "test";
+import { FastifyInstance } from 'fastify';
+import 'dotenv/config';
+import { pool } from '../../../lib/pg_pool.js';
+import { ReplyPayload } from '../../../models/routes.js';
+import { ComponentType } from '../../../models/components.js';
+
+const isTestEnvironment = process.env.NODE_ENV === 'test';
 
 type InputComponentBody = {
   formId?: unknown;
@@ -37,8 +40,8 @@ type ValidationResult =
       payload: ReplyPayload;
     };
 
-const ALLOWED_TYPES: ComponentType[] = ["image", "label", "input", "table"];
-const DEFAULT_TYPE: ComponentType = "input";
+const ALLOWED_TYPES: ComponentType[] = ['image', 'label', 'input', 'table'];
+const DEFAULT_TYPE: ComponentType = 'input';
 
 const testInputsStore = new Map<string, StoredInputComponent[]>();
 let testComponentIdCounter = 1;
@@ -47,18 +50,18 @@ const sendReply = (reply: any, status: number, payload: ReplyPayload) =>
   reply.status(status).send(payload);
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === "object" && !Array.isArray(value);
+  value !== null && typeof value === 'object' && !Array.isArray(value);
 
 const toComponentType = (candidate: unknown): ComponentType =>
-  typeof candidate === "string" && ALLOWED_TYPES.includes(candidate as ComponentType)
+  typeof candidate === 'string' && ALLOWED_TYPES.includes(candidate as ComponentType)
     ? (candidate as ComponentType)
     : DEFAULT_TYPE;
 
 const normaliseComponentRow = (row: any): StoredInputComponent => ({
-  id: String(row?.id ?? ""),
-  formId: String(row?.form_id ?? row?.formId ?? ""),
+  id: String(row?.id ?? ''),
+  formId: String(row?.form_id ?? row?.formId ?? ''),
   type: toComponentType(row?.type),
-  name: typeof row?.name === "string" ? row.name : "",
+  name: typeof row?.name === 'string' ? row.name : '',
   properties: isPlainObject(row?.properties) ? row.properties : {},
 });
 
@@ -67,7 +70,7 @@ const validateBody = (body: InputComponentBody): ValidationResult => {
     return {
       ok: false,
       httpStatus: 400,
-      payload: { message: "Request body must be a JSON object.", value: null },
+      payload: { message: 'Request body must be a JSON object.', value: null },
     };
   }
 
@@ -76,7 +79,7 @@ const validateBody = (body: InputComponentBody): ValidationResult => {
     return {
       ok: false,
       httpStatus: 400,
-      payload: { message: "A valid numeric formId is required.", value: null },
+      payload: { message: 'A valid numeric formId is required.', value: null },
     };
   }
 
@@ -86,19 +89,19 @@ const validateBody = (body: InputComponentBody): ValidationResult => {
       ok: false,
       httpStatus: 400,
       payload: {
-        message: "Invalid component type.",
+        message: 'Invalid component type.',
         value: { allowedTypes: ALLOWED_TYPES },
       },
     };
   }
 
   const resolvedName =
-    typeof body.name === "string" ? body.name : body.name === undefined ? "" : null;
+    typeof body.name === 'string' ? body.name : body.name === undefined ? '' : null;
   if (resolvedName === null) {
     return {
       ok: false,
       httpStatus: 400,
-      payload: { message: "Component name must be a string.", value: null },
+      payload: { message: 'Component name must be a string.', value: null },
     };
   }
 
@@ -108,7 +111,7 @@ const validateBody = (body: InputComponentBody): ValidationResult => {
       ok: false,
       httpStatus: 400,
       payload: {
-        message: "Component properties must be a JSON object.",
+        message: 'Component properties must be a JSON object.',
         value: null,
       },
     };
@@ -126,7 +129,7 @@ const validateBody = (body: InputComponentBody): ValidationResult => {
 };
 
 async function inputCreateRoutes(fastify: FastifyInstance) {
-  fastify.post("/api/form/inputs/create", async (req, reply) => {
+  fastify.post('/api/form/inputs/create', async (req, reply) => {
     const validation = validateBody(req.body as InputComponentBody);
     if (!validation.ok) {
       return sendReply(reply, validation.httpStatus, validation.payload);
@@ -149,14 +152,14 @@ async function inputCreateRoutes(fastify: FastifyInstance) {
       testInputsStore.set(formKey, existing);
 
       return sendReply(reply, 201, {
-        message: "Component created (test mode).",
+        message: 'Component created.',
         value: created,
       });
     }
 
     if (!pool) {
       return sendReply(reply, 500, {
-        message: "Database connection is not available.",
+        message: 'Database connection is not available.',
         value: null,
       });
     }
@@ -164,17 +167,14 @@ async function inputCreateRoutes(fastify: FastifyInstance) {
     const client = await pool.connect();
 
     try {
-      await client.query("BEGIN");
+      await client.query('BEGIN');
 
-      const formLookup = await client.query(
-        "SELECT id FROM forms WHERE id = $1;",
-        [formId]
-      );
+      const formLookup = await client.query('SELECT id FROM forms WHERE id = $1;', [formId]);
 
       if (formLookup.rowCount === 0) {
-        await client.query("ROLLBACK");
+        await client.query('ROLLBACK');
         return sendReply(reply, 404, {
-          message: "Form not found.",
+          message: 'Form not found.',
           value: null,
         });
       }
@@ -188,17 +188,17 @@ async function inputCreateRoutes(fastify: FastifyInstance) {
         [formId, properties, name || null, type]
       );
 
-      await client.query("COMMIT");
+      await client.query('COMMIT');
 
       return sendReply(reply, 201, {
-        message: "Component created successfully.",
+        message: 'Component created successfully.',
         value: normaliseComponentRow(insertResult.rows[0]),
       });
     } catch (error) {
-      await client.query("ROLLBACK");
-      fastify.log.error({ err: error }, "Component creation error");
+      await client.query('ROLLBACK');
+      fastify.log.error({ err: error }, 'Component creation error');
       return sendReply(reply, 500, {
-        message: "Failed to create component.",
+        message: 'Failed to create component.',
         value: error instanceof Error ? error.message : String(error),
       });
     } finally {
