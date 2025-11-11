@@ -1,18 +1,19 @@
-import { describe, expect, test } from '@jest/globals';
+import { describe, expect, test } from 'bun:test';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import { route } from './util.js';
-import firebaseConfig from '../../firebase-client-config.json';
-
 import '../index';
+import { randomInt } from 'crypto';
+import 'dotenv/config';
 
+const firebaseConfig = JSON.parse(process.env.FIREBASE_CLIENT_CONFIG as string);
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
 describe('Authentication', () => {
-  const email = 'test-old@example.com';
+  const email = `test-old+${randomInt(2 ** 32)}@example.com`;
   const password = 'Password1';
-  const newEmail = 'test-new@example.com';
+  const newEmail = `test-new+${randomInt(2 ** 32)}@example.com`;
   const newPassword = 'Password2';
 
   const login = async (email: string, password: string) =>
@@ -53,6 +54,44 @@ describe('Authentication', () => {
     const responseBody = await response.text();
 
     expect(responseBody).toBeTruthy();
+  });
+
+  test(`Update a user without a email`, async () => {
+    const { user } = await login(email, password);
+    const idToken = await user.getIdToken();
+
+    const headers = new Headers();
+    headers.append('Authorization', `Bearer ${idToken}`);
+    headers.append('Content-Type', 'application/json');
+
+    const requestBody = JSON.stringify({
+      updateRequest: { password: newPassword, email: '' },
+    });
+
+    const config = { method: 'POST', headers, body: requestBody };
+
+    const response = await fetch(route('/update-user'), config);
+    const { message } = await response.json();
+    expect(message).toBe('Error updating user');
+  });
+
+  test(`Update a user without a password`, async () => {
+    const { user } = await login(email, password);
+    const idToken = await user.getIdToken();
+
+    const headers = new Headers();
+    headers.append('Authorization', `Bearer ${idToken}`);
+    headers.append('Content-Type', 'application/json');
+
+    const requestBody = JSON.stringify({
+      updateRequest: { password: '', email: newEmail },
+    });
+
+    const config = { method: 'POST', headers, body: requestBody };
+
+    const response = await fetch(route('/update-user'), config);
+    const { message } = await response.json();
+    expect(message).toBe('Error updating user');
   });
 
   test(`Server updates a user's password and email after logging in`, async () => {
