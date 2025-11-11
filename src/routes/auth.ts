@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import 'dotenv/config';
-import { BodyType } from '../models/interfaces';
+import { BodyType, ReplyPayload } from '../models/interfaces';
 import { pool } from '../lib/pg_pool';
 
 //! WARN Currently we assume that the Firebase and Supabase servers
@@ -22,7 +22,7 @@ async function authRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/create-user',
     async (request: FastifyRequest<{ Body: BodyType }>, reply: FastifyReply) => {
-      const replyPayload = { message: '', value: {} };
+      const replyPayload: ReplyPayload = { message: '', value: {} };
       const { auth } = request.server.firebase;
       const { email, password } = request.body;
       try {
@@ -47,7 +47,7 @@ async function authRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/update-user',
     async (request: FastifyRequest<{ Body: BodyType }>, reply: FastifyReply) => {
-      const replyPayload = { message: '', value: {} };
+      const replyPayload: ReplyPayload = { message: '', value: {} };
       const { auth } = request.server.firebase;
       const { updateRequest } = request.body;
       const uid = request.headers.uid;
@@ -78,7 +78,7 @@ async function authRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/delete-user',
     async (request: FastifyRequest<{ Body: BodyType }>, reply: FastifyReply) => {
-      const replyPayload = { message: '', value: {} };
+      const replyPayload: ReplyPayload = { message: '', value: {} };
 
       const { auth } = request.server.firebase;
       const uid = request.headers.uid;
