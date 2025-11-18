@@ -11,6 +11,7 @@ import formAnswerRoutes from './api/form/answer/[formID].js';
 import formClearRoutes from './api/form/clear/[formID].js';
 import formDeleteRoutes from './api/form/delete/[formID].js';
 import inputCreateRoutes from './api/form/inputs/create.js';
+import viewFormResponsesRoutes from './api/form/[formID]/answers.js';
 import 'dotenv/config';
 
 const fastify = Fastify({
@@ -33,6 +34,7 @@ fastify.register(formAnswerRoutes);
 fastify.register(formClearRoutes, { prefix: '/api/form' });
 fastify.register(formDeleteRoutes);
 fastify.register(inputCreateRoutes);
+fastify.register(viewFormResponsesRoutes);
 
 // Authentication hook
 fastify.addHook(

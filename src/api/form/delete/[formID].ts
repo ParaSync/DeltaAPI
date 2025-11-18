@@ -1,19 +1,13 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-// TODO: remove the above
-
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyReply } from 'fastify';
 import 'dotenv/config';
 import { pool } from '../../../lib/pg_pool.js';
 import { ReplyPayload } from '../../../models/routes.js';
-
-const isTestEnvironment = process.env.NODE_ENV === 'test';
-const testDeletedForms = new Set<number>();
 
 type ConfirmBody = {
   confirm?: boolean;
 };
 
-const sendReply = (reply: any, status: number, payload: ReplyPayload) =>
+const sendReply = (reply: FastifyReply, status: number, payload: ReplyPayload) =>
   reply.status(status).send(payload);
 
 async function deleteFormRoutes(fastify: FastifyInstance) {
@@ -22,10 +16,7 @@ async function deleteFormRoutes(fastify: FastifyInstance) {
     const parsedId = Number(formID);
 
     if (!Number.isInteger(parsedId) || parsedId <= 0) {
-      return sendReply(reply, 400, {
-        message: 'Invalid form ID.',
-        value: null,
-      });
+      return sendReply(reply, 400, { message: 'Invalid form ID.', value: null });
     }
 
     const body = (req.body as ConfirmBody) ?? {};
@@ -36,21 +27,8 @@ async function deleteFormRoutes(fastify: FastifyInstance) {
       });
     }
 
-    if (isTestEnvironment) {
-      const existed = testDeletedForms.has(parsedId);
-      testDeletedForms.add(parsedId);
-
-      return sendReply(reply, 200, {
-        message: existed ? 'Form deletion confirmed.' : 'Form deleted successfully.',
-        value: { formId: String(parsedId) },
-      });
-    }
-
     if (!pool) {
-      return sendReply(reply, 500, {
-        message: 'Database connection is not available.',
-        value: null,
-      });
+      return sendReply(reply, 500, { message: 'Database connection is not available.', value: null });
     }
 
     const client = await pool.connect();
@@ -58,18 +36,18 @@ async function deleteFormRoutes(fastify: FastifyInstance) {
     try {
       await client.query('BEGIN');
 
+      // Delete all components for the form first
       await client.query('DELETE FROM components WHERE form_id = $1;', [parsedId]);
 
-      const formResult = await client.query('DELETE FROM forms WHERE id = $1 RETURNING id;', [
-        parsedId,
-      ]);
+      // Delete the form itself
+      const formResult = await client.query(
+        'DELETE FROM forms WHERE id = $1 RETURNING id;',
+        [parsedId]
+      );
 
       if (formResult.rowCount === 0) {
         await client.query('ROLLBACK');
-        return sendReply(reply, 404, {
-          message: 'Form not found.',
-          value: null,
-        });
+        return sendReply(reply, 404, { message: 'Form not found.', value: null });
       }
 
       await client.query('COMMIT');
