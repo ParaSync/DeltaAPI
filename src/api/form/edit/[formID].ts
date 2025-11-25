@@ -46,6 +46,27 @@ async function editFormRoutes(fastify: FastifyInstance) {
       }
     }
   );
+  fastify.post(
+    'api/form/edit/rename/:formId',
+    async (request: FastifyRequest<{ Body: BodyType }>, reply: FastifyReply) => {
+      const replyPayload: ReplyPayload = { message: '', value: '' };
+
+      const { formId } = request.params as { formId: string };
+      const queryText = `UPDATE forms SET title = $1 WHERE id = $2`;
+      const values = [formId];
+
+      try {
+        const result = await pool.query(queryText, values);
+        replyPayload.message = 'Form renamed successfully';
+        replyPayload.value = result;
+        return reply.status(200).send(replyPayload);
+      } catch (error: unknown) {
+        replyPayload.message = 'An error occurred';
+        replyPayload.value = error;
+        return reply.status(500).send(replyPayload);
+      }
+    }
+  );
 }
 
 export default editFormRoutes;
