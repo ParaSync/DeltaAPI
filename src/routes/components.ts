@@ -74,7 +74,7 @@ async function componentRoutes(fastify: FastifyInstance) {
       }
 
       replyPayload = { message: 'Unknown error', value: 'An uncaught error has occurred.' };
-      return reply.status(500).send();
+      return reply.status(500).send(replyPayload);
     }
   );
 
