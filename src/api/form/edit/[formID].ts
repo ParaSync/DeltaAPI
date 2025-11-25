@@ -52,8 +52,10 @@ async function editFormRoutes(fastify: FastifyInstance) {
       const replyPayload: ReplyPayload = { message: '', value: '' };
 
       const { formId } = request.params as { formId: string };
+      const { title } = request.body;
+
       const queryText = `UPDATE forms SET title = $1 WHERE id = $2`;
-      const values = [formId];
+      const values = [title, formId];
 
       try {
         const result = await pool.query(queryText, values);

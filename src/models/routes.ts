@@ -7,6 +7,7 @@ export interface BodyType {
   uid: string;
   formId: string;
   componentId: string;
+  title: string;
   properties: ComponentProperties;
   updateRequest: Record<string, unknown>;
 }
