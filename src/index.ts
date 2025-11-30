@@ -13,6 +13,7 @@ import formDeleteRoutes from './api/form/delete/[formID].js';
 import inputCreateRoutes from './api/form/inputs/create.js';
 import viewFormResponsesRoutes from './api/form/[formID]/answers.js';
 import 'dotenv/config';
+import cors from '@fastify/cors';
 
 const fastify = Fastify({
   logger: {
@@ -21,6 +22,12 @@ const fastify = Fastify({
       target: 'pino-pretty',
     },
   },
+});
+
+fastify.register(cors, {
+  origin: '*', // set your frontend origin here
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 });
 
 const fastifyServiceAccountConfig = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT as string);
