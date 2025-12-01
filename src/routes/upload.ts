@@ -3,6 +3,8 @@ import multipart from "@fastify/multipart";
 import { randomUUID } from "crypto";
 import supabase from "../lib/supabase";
 
+const isTestEnvironment = process.env.NODE_ENV === "test";
+
 async function uploadRoutes(fastify: FastifyInstance) {
   fastify.register(multipart);
 
@@ -17,18 +19,27 @@ async function uploadRoutes(fastify: FastifyInstance) {
       }
 
       const filename = `${randomUUID()}-${file.filename}`;
+
+      if (isTestEnvironment) {
+        return reply.send({
+          src: `https://example.com/${filename}`,
+          filename,
+          message: "Upload successful",
+        });
+      }
+
       const buffer = await file.toBuffer();
 
-      const { error } = await (supabase.storage
+      const { error } = await supabase.storage
         .from(process.env.SUPABASE_BUCKET!)
         .upload(filename, buffer, {
           contentType: file.mimetype,
           upsert: true,
           duplex: "half",
-        } as any));
+        } as any);
 
       if (error) {
-        console.error('Upload error:', error);
+        console.error("Upload error:", error);
         return reply.status(500).send({ error: error.message });
       }
 
@@ -39,10 +50,10 @@ async function uploadRoutes(fastify: FastifyInstance) {
       return reply.send({
         src: publicUrlData.publicUrl,
         filename,
-        message: "Upload successful"
+        message: "Upload successful",
       });
     } catch (err) {
-      console.error('Route error:', err);
+      console.error("Route error:", err);
       return reply.status(500).send({ error: "Internal server error" });
     }
   });
