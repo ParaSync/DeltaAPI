@@ -67,8 +67,7 @@ const normaliseComponent = (component: unknown): ListedComponent => {
   }
 
   const properties = isPlainObject(component.properties) ? component.properties : {};
-  const orderSource =
-    component.order ?? properties.order ?? properties.orderBy ?? properties.index;
+  const orderSource = component.order ?? properties.order ?? properties.orderBy ?? properties.index;
 
   return {
     id: String(component.id),
@@ -80,40 +79,38 @@ const normaliseComponent = (component: unknown): ListedComponent => {
   };
 };
 
-
 /**
  * Normalize a form record from the database.
  */
-const normaliseForm = (form: unknown): ListedForm => {
-  if (!isPlainObject(form)) {
-    throw new Error('Invalid form object');
-  }
+// const normaliseForm = (form: unknown): ListedForm => {
+//   if (!isPlainObject(form)) {
+//     throw new Error('Invalid form object');
+//   }
 
-  const createdRaw = form.createdAt ?? form.created_at ?? Date.now();
-  let createdDate: Date;
+//   const createdRaw = form.createdAt ?? form.created_at ?? Date.now();
+//   let createdDate: Date;
 
-  if (typeof createdRaw === 'string' || typeof createdRaw === 'number' || createdRaw instanceof Date) {
-    createdDate = new Date(createdRaw);
-  } else {
-    createdDate = new Date(); // fallback if value is not string/number/Date
-  }
+//   if (typeof createdRaw === 'string' || typeof createdRaw === 'number' || createdRaw instanceof Date) {
+//     createdDate = new Date(createdRaw);
+//   } else {
+//     createdDate = new Date(); // fallback if value is not string/number/Date
+//   }
 
-  return {
-    id: String(form.id),
-    title: typeof form.title === 'string' ? form.title : '',
-    userId:
-      typeof form.userId === 'string'
-        ? form.userId
-        : typeof form.user_id === 'string'
-        ? form.user_id
-        : '',
-    createdAt: createdDate.toISOString(),
-    components: sortComponents(
-      Array.isArray(form.components) ? form.components.map(normaliseComponent) : []
-    ),
-  };
-};
-
+//   return {
+//     id: String(form.id),
+//     title: typeof form.title === 'string' ? form.title : '',
+//     userId:
+//       typeof form.userId === 'string'
+//         ? form.userId
+//         : typeof form.user_id === 'string'
+//         ? form.user_id
+//         : '',
+//     createdAt: createdDate.toISOString(),
+//     components: sortComponents(
+//       Array.isArray(form.components) ? form.components.map(normaliseComponent) : []
+//     ),
+//   };
+// };
 
 /**
  * Register route for listing forms.
@@ -192,7 +189,7 @@ async function listFormRoutes(fastify: FastifyInstance) {
     } catch (error) {
       fastify.log.error(
         `Form listing error: ${
-          error instanceof Error ? error.stack ?? error.message : String(error)
+          error instanceof Error ? (error.stack ?? error.message) : String(error)
         }`
       );
       return sendReply(reply, 500, {
@@ -201,6 +198,30 @@ async function listFormRoutes(fastify: FastifyInstance) {
       });
     } finally {
       client.release();
+    }
+  });
+
+  fastify.get('/api/form/list/:userId', async (req, reply) => {
+    const { userId } = req.params as { userId: string };
+
+    try {
+      const result = await pool.query(
+        `SELECT id, title, user_id, created_at
+        FROM forms
+        WHERE user_id = $1
+        ORDER BY created_at DESC`,
+        [userId]
+      );
+
+      return reply.send({
+        message: 'Forms retrieved successfully.',
+        value: result.rows,
+      });
+    } catch (err) {
+      return reply.status(500).send({
+        message: 'Failed to load forms.',
+        value: err instanceof Error ? err.message : String(err),
+      });
     }
   });
 }
