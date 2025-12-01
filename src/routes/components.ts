@@ -127,7 +127,7 @@ async function componentRoutes(fastify: FastifyInstance) {
           form_id = $2 AND id = $3
         RETURNING
           properties as new_properties,
-          type as component_ype
+          type as component_type
         `;
       const updateValues = [newProperties, formId, componentId];
 

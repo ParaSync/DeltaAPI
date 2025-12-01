@@ -1,15 +1,9 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-// TODO: remove the above
-
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyReply } from 'fastify';
 import 'dotenv/config';
 import { Form } from '../../models/forms.js';
 import { ReplyPayload } from '../../models/routes.js';
 import { ComponentType } from '../../models/components.js';
-import { getTestFormsSnapshot } from './create';
 import { pool } from '../../lib/pg_pool.js';
-
-const isTestEnvironment = process.env.NODE_ENV === 'test';
 
 type ListedComponent = {
   id: string;
@@ -26,20 +20,35 @@ type ListedForm = Form & {
 
 const ALLOWED_TYPES: ComponentType[] = ['image', 'label', 'input', 'table'];
 
-const sendReply = (reply: any, status: number, payload: ReplyPayload) =>
+/**
+ * Send a Fastify reply with the correct payload type.
+ */
+const sendReply = (reply: FastifyReply, status: number, payload: ReplyPayload) =>
   reply.status(status).send(payload);
 
+/**
+ * Convert unknown value to a valid ComponentType.
+ */
 const toComponentType = (candidate: unknown): ComponentType =>
   typeof candidate === 'string' && ALLOWED_TYPES.includes(candidate as ComponentType)
     ? (candidate as ComponentType)
     : 'input';
 
+/**
+ * Type guard to check if a value is a plain object.
+ */
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 
+/**
+ * Sort components by order.
+ */
 const sortComponents = (components: ListedComponent[]): ListedComponent[] =>
   components.slice().sort((a, b) => a.order - b.order);
 
+/**
+ * Convert a value to a numeric order.
+ */
 const toComponentOrder = (raw: unknown): number => {
   if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
   if (typeof raw === 'string' && raw.trim() !== '') {
@@ -49,10 +58,16 @@ const toComponentOrder = (raw: unknown): number => {
   return 0;
 };
 
-const normaliseComponent = (component: any): ListedComponent => {
-  const properties = isPlainObject(component?.properties) ? component.properties : {};
-  const orderSource =
-    component?.order ?? properties.order ?? properties.orderBy ?? properties.index;
+/**
+ * Normalize a component record from the database.
+ */
+const normaliseComponent = (component: unknown): ListedComponent => {
+  if (!isPlainObject(component)) {
+    throw new Error('Invalid component object');
+  }
+
+  const properties = isPlainObject(component.properties) ? component.properties : {};
+  const orderSource = component.order ?? properties.order ?? properties.orderBy ?? properties.index;
 
   return {
     id: String(component.id),
@@ -64,31 +79,44 @@ const normaliseComponent = (component: any): ListedComponent => {
   };
 };
 
-const normaliseForm = (form: any): ListedForm => ({
-  id: String(form.id),
-  title: typeof form.title === 'string' ? form.title : '',
-  userId:
-    typeof form.userId === 'string'
-      ? form.userId
-      : typeof form.user_id === 'string'
-        ? form.user_id
-        : '',
-  createdAt: new Date(form.createdAt ?? form.created_at ?? Date.now()).toISOString(),
-  components: sortComponents(
-    Array.isArray(form.components) ? form.components.map(normaliseComponent) : []
-  ),
-});
+/**
+ * Normalize a form record from the database.
+ */
+// const normaliseForm = (form: unknown): ListedForm => {
+//   if (!isPlainObject(form)) {
+//     throw new Error('Invalid form object');
+//   }
 
+//   const createdRaw = form.createdAt ?? form.created_at ?? Date.now();
+//   let createdDate: Date;
+
+//   if (typeof createdRaw === 'string' || typeof createdRaw === 'number' || createdRaw instanceof Date) {
+//     createdDate = new Date(createdRaw);
+//   } else {
+//     createdDate = new Date(); // fallback if value is not string/number/Date
+//   }
+
+//   return {
+//     id: String(form.id),
+//     title: typeof form.title === 'string' ? form.title : '',
+//     userId:
+//       typeof form.userId === 'string'
+//         ? form.userId
+//         : typeof form.user_id === 'string'
+//         ? form.user_id
+//         : '',
+//     createdAt: createdDate.toISOString(),
+//     components: sortComponents(
+//       Array.isArray(form.components) ? form.components.map(normaliseComponent) : []
+//     ),
+//   };
+// };
+
+/**
+ * Register route for listing forms.
+ */
 async function listFormRoutes(fastify: FastifyInstance) {
   fastify.get('/api/form/list', async (_req, reply) => {
-    if (isTestEnvironment) {
-      const forms = getTestFormsSnapshot().map(normaliseForm);
-      return sendReply(reply, 200, {
-        message: 'Forms retrieved successfully.',
-        value: { forms },
-      });
-    }
-
     if (!pool) {
       return sendReply(reply, 500, {
         message: 'Database connection is not available.',
@@ -126,7 +154,13 @@ async function listFormRoutes(fastify: FastifyInstance) {
       const formIds = formsResult.rows.map((row) => row.id);
 
       if (formIds.length > 0) {
-        const componentsResult = await client.query(
+        const componentsResult = await client.query<{
+          id: number;
+          form_id: number;
+          type: string;
+          name: string;
+          properties: Record<string, unknown>;
+        }>(
           `
             SELECT id, form_id, type, name, properties
             FROM components
@@ -164,6 +198,30 @@ async function listFormRoutes(fastify: FastifyInstance) {
       });
     } finally {
       client.release();
+    }
+  });
+
+  fastify.get('/api/form/list/:userId', async (req, reply) => {
+    const { userId } = req.params as { userId: string };
+
+    try {
+      const result = await pool.query(
+        `SELECT id, title, user_id, created_at
+        FROM forms
+        WHERE user_id = $1
+        ORDER BY created_at DESC`,
+        [userId]
+      );
+
+      return reply.send({
+        message: 'Forms retrieved successfully.',
+        value: result.rows,
+      });
+    } catch (err) {
+      return reply.status(500).send({
+        message: 'Failed to load forms.',
+        value: err instanceof Error ? err.message : String(err),
+      });
     }
   });
 }

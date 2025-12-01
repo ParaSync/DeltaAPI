@@ -1,13 +1,8 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-// TODO: remove the above
-
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyReply } from 'fastify';
 import 'dotenv/config';
 import { pool } from '../../../lib/pg_pool.js';
 import { ReplyPayload } from '../../../models/routes.js';
 import { ComponentType } from '../../../models/components.js';
-
-const isTestEnvironment = process.env.NODE_ENV === 'test';
 
 type InputComponentBody = {
   formId?: unknown;
@@ -43,10 +38,7 @@ type ValidationResult =
 const ALLOWED_TYPES: ComponentType[] = ['image', 'label', 'input', 'table'];
 const DEFAULT_TYPE: ComponentType = 'input';
 
-const testInputsStore = new Map<string, StoredInputComponent[]>();
-let testComponentIdCounter = 1;
-
-const sendReply = (reply: any, status: number, payload: ReplyPayload) =>
+const sendReply = (reply: FastifyReply, status: number, payload: ReplyPayload) =>
   reply.status(status).send(payload);
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
@@ -57,13 +49,17 @@ const toComponentType = (candidate: unknown): ComponentType =>
     ? (candidate as ComponentType)
     : DEFAULT_TYPE;
 
-const normaliseComponentRow = (row: any): StoredInputComponent => ({
-  id: String(row?.id ?? ''),
-  formId: String(row?.form_id ?? row?.formId ?? ''),
-  type: toComponentType(row?.type),
-  name: typeof row?.name === 'string' ? row.name : '',
-  properties: isPlainObject(row?.properties) ? row.properties : {},
-});
+const normaliseComponentRow = (row: unknown): StoredInputComponent => {
+  if (!isPlainObject(row)) throw new Error('Invalid component row');
+
+  return {
+    id: String(row?.id ?? ''),
+    formId: String(row?.form_id ?? row?.formId ?? ''),
+    type: toComponentType(row?.type),
+    name: typeof row?.name === 'string' ? row.name : '',
+    properties: isPlainObject(row?.properties) ? row.properties : {},
+  };
+};
 
 const validateBody = (body: InputComponentBody): ValidationResult => {
   if (!isPlainObject(body)) {
@@ -88,10 +84,7 @@ const validateBody = (body: InputComponentBody): ValidationResult => {
     return {
       ok: false,
       httpStatus: 400,
-      payload: {
-        message: 'Invalid component type.',
-        value: { allowedTypes: ALLOWED_TYPES },
-      },
+      payload: { message: 'Invalid component type.', value: { allowedTypes: ALLOWED_TYPES } },
     };
   }
 
@@ -110,10 +103,7 @@ const validateBody = (body: InputComponentBody): ValidationResult => {
     return {
       ok: false,
       httpStatus: 400,
-      payload: {
-        message: 'Component properties must be a JSON object.',
-        value: null,
-      },
+      payload: { message: 'Component properties must be a JSON object.', value: null },
     };
   }
 
@@ -137,31 +127,8 @@ async function inputCreateRoutes(fastify: FastifyInstance) {
 
     const { formId, type, name, properties } = validation.value;
 
-    if (isTestEnvironment) {
-      const formKey = String(formId);
-      const created: StoredInputComponent = {
-        id: String(testComponentIdCounter++),
-        formId: formKey,
-        type,
-        name,
-        properties,
-      };
-
-      const existing = testInputsStore.get(formKey) ?? [];
-      existing.push(created);
-      testInputsStore.set(formKey, existing);
-
-      return sendReply(reply, 201, {
-        message: 'Component created.',
-        value: created,
-      });
-    }
-
     if (!pool) {
-      return sendReply(reply, 500, {
-        message: 'Database connection is not available.',
-        value: null,
-      });
+      return sendReply(reply, 500, { message: 'Database connection is not available.', value: null });
     }
 
     const client = await pool.connect();
@@ -173,10 +140,7 @@ async function inputCreateRoutes(fastify: FastifyInstance) {
 
       if (formLookup.rowCount === 0) {
         await client.query('ROLLBACK');
-        return sendReply(reply, 404, {
-          message: 'Form not found.',
-          value: null,
-        });
+        return sendReply(reply, 404, { message: 'Form not found.', value: null });
       }
 
       const insertResult = await client.query(
