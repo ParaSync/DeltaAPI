@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import 'dotenv/config';
-import { BodyType, ReplyPayload } from '../models/interfaces';
+import { BodyType, ReplyPayload } from '../models/routes';
 import { pool } from '../lib/pg_pool';
 
 //! WARN Currently we assume that the Firebase and Supabase servers
@@ -100,6 +100,37 @@ async function authRoutes(fastify: FastifyInstance) {
         replyPayload.value = JSON.stringify(error);
       }
       reply.send(replyPayload);
+    }
+  );
+
+  fastify.post(
+    '/get-user-id',
+    async (request: FastifyRequest<{ Body: BodyType }>, reply: FastifyReply) => {
+      const replyPayload: ReplyPayload = { message: '', value: {} };
+      const { email } = request.body;
+
+      try {
+        const queryText = `SELECT id FROM users WHERE username = $1 LIMIT 1`;
+        const result = await pool.query(queryText, [email]);
+
+        if (result.rows.length === 0) {
+          replyPayload.message = 'User not found';
+          replyPayload.value = null;
+          return reply.status(404).send(replyPayload);
+        }
+
+        const userId = result.rows[0].id;
+
+        replyPayload.message = 'User ID fetched successfully';
+        replyPayload.value = { id: userId };
+
+        return reply.send(replyPayload);
+      } catch (error) {
+        replyPayload.message = 'Error fetching user id';
+        replyPayload.value = error instanceof Error ? error.message : String(error);
+
+        return reply.status(500).send(replyPayload);
+      }
     }
   );
 }
