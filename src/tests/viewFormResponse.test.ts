@@ -1,26 +1,26 @@
-import { describe, expect, test } from "@jest/globals";
+import { describe, expect, test } from 'bun:test';
 
 const route = (s: string) => `http://localhost:3000/${s}`;
 
 const buildFormPayload = () => ({
   title: `ViewResponseForm ${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-  userId: "892d56fa-50c6-43b3-86e9-f162329760a1",
+  userId: '892d56fa-50c6-43b3-86e9-f162329760a1',
   components: [
     {
-      type: "text",
+      type: 'text',
       name: `full_name_${Date.now()}`,
       order: 1,
       properties: {
-        label: "Full Name",
+        label: 'Full Name',
         required: true,
       },
     },
     {
-      type: "number",
+      type: 'number',
       name: `age_${Date.now()}`,
       order: 2,
       properties: {
-        label: "Age",
+        label: 'Age',
         required: true,
         min: 0,
       },
@@ -29,37 +29,40 @@ const buildFormPayload = () => ({
 });
 
 const createForm = async () => {
-  const response = await fetch(route("api/form/create"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+  const response = await fetch(route('api/form/create'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(buildFormPayload()),
   });
 
   expect(response.status).toBe(201);
   const json = await response.json();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (json?.value ?? json) as any;
 };
 
-describe("View Form Response Route", () => {
-  test("returns the correct form and answers for a submission", async () => {
+describe('View Form Response Route', () => {
+  test('returns the correct form and answers for a submission', async () => {
     const form = await createForm();
 
     // pick components and build answers
-    const textComponent = form.components.find((c: any) => c.properties?.label === "Full Name");
-    const numberComponent = form.components.find((c: any) => c.properties?.label === "Age");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const textComponent = form.components.find((c: any) => c.properties?.label === 'Full Name');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const numberComponent = form.components.find((c: any) => c.properties?.label === 'Age');
 
     expect(textComponent).toBeTruthy();
     expect(numberComponent).toBeTruthy();
 
-    const textValue = "Alice Example";
+    const textValue = 'Alice Example';
     const numberValue = 42;
 
     // submit answers
     const submitResp = await fetch(route(`api/form/answer/${form.id}`), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        respondent_id: "892d56fa-50c6-43b3-86e9-f162329760a1",
+        respondent_id: '892d56fa-50c6-43b3-86e9-f162329760a1',
         answers: [
           { componentId: parseInt(String(textComponent.id)), value: textValue },
           { componentId: parseInt(String(numberComponent.id)), value: numberValue },

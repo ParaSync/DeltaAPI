@@ -25,7 +25,7 @@ async function getFormComponents(formId: string): Promise<Array<ComponentPropert
 
 async function editFormRoutes(fastify: FastifyInstance) {
   fastify.post(
-    'api/form/edit/:formId',
+    '/api/form/edit/:formId',
     async (request: FastifyRequest<{ Body: BodyType }>, reply: FastifyReply) => {
       let replyPayload: ReplyPayload = { message: '', value: '' };
 
@@ -47,7 +47,7 @@ async function editFormRoutes(fastify: FastifyInstance) {
     }
   );
   fastify.post(
-    'api/form/edit/rename/:formId',
+    '/api/form/edit/rename/:formId',
     async (request: FastifyRequest<{ Body: BodyType }>, reply: FastifyReply) => {
       const replyPayload: ReplyPayload = { message: '', value: '' };
 
