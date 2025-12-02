@@ -75,6 +75,10 @@ fastify.addHook(
   }
 );
 
+fastify.get('/healthcheck', (request: FastifyRequest, reply: FastifyReply) => {
+  return reply.code(200).send('OK');
+});
+
 const start = async () => {
   try {
     await fastify.listen({ port: 3000, host: '0.0.0.0' });
