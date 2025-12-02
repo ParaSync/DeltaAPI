@@ -201,15 +201,48 @@ async function listFormRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.get('/api/form/list/:userId', async (req, reply) => {
+  fastify.get('/api/form/list/all/:userId', async (req, reply) => {
     const { userId } = req.params as { userId: string };
 
     try {
       const result = await pool.query(
-        `SELECT id, title, user_id, created_at
+        `SELECT id, title, user_id, created_at, status
         FROM forms
         WHERE user_id = $1
         ORDER BY created_at DESC`,
+        [userId]
+      );
+
+      return reply.send({
+        message: 'Forms retrieved successfully.',
+        value: result.rows,
+      });
+    } catch (err) {
+      return reply.status(500).send({
+        message: 'Failed to load forms.',
+        value: err instanceof Error ? err.message : String(err),
+      });
+    }
+  });
+
+  fastify.get('/api/form/list/published/:userId', async (req, reply) => {
+    const { userId } = req.params as { userId: string };
+
+    try {
+      const result = await pool.query(
+        `SELECT 
+          f.id,
+          f.title,
+          f.user_id,
+          f.created_at,
+          f.status,
+          COUNT(s.id) AS responses
+        FROM forms f
+        LEFT JOIN submissions s ON s.form_id = f.id
+        WHERE f.status = 'published'
+          AND f.user_id = $1
+        GROUP BY f.id
+        ORDER BY f.created_at DESC;`,
         [userId]
       );
 
