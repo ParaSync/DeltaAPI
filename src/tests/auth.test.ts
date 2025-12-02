@@ -3,7 +3,6 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import { route } from './util.js';
 
-
 import '../index';
 import { randomInt } from 'crypto';
 import 'dotenv/config';
