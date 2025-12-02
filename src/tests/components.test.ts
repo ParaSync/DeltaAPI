@@ -1,5 +1,7 @@
-import { describe, expect, test, beforeAll, afterAll } from '@jest/globals';
+import { describe, expect, test, beforeAll, afterAll } from 'bun:test';
 import { route } from './util.js';
+
+import '../index';
 
 describe('Component Routes', () => {
   let componentId: string;
