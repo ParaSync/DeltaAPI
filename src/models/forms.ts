@@ -3,14 +3,14 @@ export type Form = {
   title: string;
   userId: string;
   createdAt: string;
-};
+}
 
 export type Submission = {
   id: string;
   formId: string;
   userId: string;
   createdAt: string;
-};
+}
 
 export type Answer = {
   options?: AnswerOptions;
@@ -21,4 +21,4 @@ export type Answer = {
 type AnswerOptions = {
   selected?: string[];
   input?: string;
-};
+}

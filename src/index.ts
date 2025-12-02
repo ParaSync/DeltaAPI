@@ -1,11 +1,20 @@
 import Fastify from 'fastify';
 import { FastifyReply, FastifyRequest } from 'fastify';
 import fastifyFirebase from 'fastify-firebase';
-import firebasePrivateKeyJson from '../neuron-delta-firebase-adminsdk-fbsvc-e748a310fb.json';
 import authRoutes from './routes/auth';
 import uploadRoutes from './routes/upload';
 import componentRoutes from './routes/components';
 import { BodyType } from './models/routes';
+import createFormRoutes from './api/form/create.js';
+import listFormRoutes from './api/form/list.js';
+import formAnswerRoutes from './api/form/answer/[formID].js';
+import formClearRoutes from './api/form/clear/[formID].js';
+import formDeleteRoutes from './api/form/delete/[formID].js';
+import formEditRoutes from './api/form/edit/[formID].js';
+import inputCreateRoutes from './api/form/inputs/create.js';
+import viewFormResponsesRoutes from './api/form/[formID]/answers.js';
+import 'dotenv/config';
+import cors from '@fastify/cors';
 
 const fastify = Fastify({
   logger: {
@@ -16,10 +25,25 @@ const fastify = Fastify({
   },
 });
 
-fastify.register(fastifyFirebase, firebasePrivateKeyJson);
+fastify.register(cors, {
+  origin: '*', // set your frontend origin here
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+});
+
+const fastifyServiceAccountConfig = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT as string);
+fastify.register(fastifyFirebase, fastifyServiceAccountConfig);
 fastify.register(authRoutes);
 fastify.register(uploadRoutes);
 fastify.register(componentRoutes);
+fastify.register(createFormRoutes);
+fastify.register(listFormRoutes);
+fastify.register(formAnswerRoutes);
+fastify.register(formClearRoutes, { prefix: '/api/form' });
+fastify.register(formDeleteRoutes);
+fastify.register(formEditRoutes);
+fastify.register(inputCreateRoutes);
+fastify.register(viewFormResponsesRoutes);
 
 // Authentication hook
 fastify.addHook(
@@ -51,10 +75,14 @@ fastify.addHook(
   }
 );
 
+fastify.get('/healthcheck', (request: FastifyRequest, reply: FastifyReply) => {
+  return reply.code(200).send('OK');
+});
+
 const start = async () => {
   try {
-    await fastify.listen({ port: 3000 });
-    console.log('Server running on http://localhost:3000');
+    await fastify.listen({ port: 3000, host: '0.0.0.0' });
+    console.log('Server running on http://0.0.0.0:3000');
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
