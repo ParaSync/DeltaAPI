@@ -9,9 +9,8 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    #if: >
-    #  github.event.workflow_run.conclusion == 'success' &&
-    #  github.event.workflow_run.head_branch == 'develop'
+    if: >
+      github.event.workflow_run.head_branch == 'develop'
     steps:
       - name: Dump context
         env:
@@ -31,7 +30,7 @@ jobs:
       - name: Add remote host to known_hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan ${{ secrets.REMOTE_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan ${{ secrets.DEPLOY_REMOTE_HOST }} >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
       - name: Upload docker-compose.yml
