@@ -3,7 +3,6 @@ name: Deploy Container via SSH (Develop)
 on:
   workflow_run:
     workflows: ["Build Docker Container (AMD64)"]
-    branches: [develop]
     types: 
       - completed
 
