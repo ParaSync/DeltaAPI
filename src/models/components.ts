@@ -34,7 +34,7 @@ export interface ComponentProperties {
 
 export interface ImageProperties extends ComponentProperties {
   image: {
-    name?: string;
+    name: string;
     data?: Blob;
     placeholder?: string;
     location?: string; // will be set by backend
@@ -49,6 +49,7 @@ export interface LabelProperties extends ComponentProperties {
     fontSize?: string | number;
     fontStyle?: 'italic';
     fontWeight?: number | 'bold';
+    text: string;
     textDecoration?: 'underline' | 'none';
     textDecorationColor?: string;
   };
@@ -56,7 +57,7 @@ export interface LabelProperties extends ComponentProperties {
 
 export interface InputProperties extends ComponentProperties {
   input: {
-    type: HTMLInputType;
+    type: HTMLInputType | 'select';
     placeholder?: string;
     value?: string;
     maxLength?: number;
@@ -72,6 +73,7 @@ export interface InputProperties extends ComponentProperties {
     height?: number;
     width?: number;
     autocomplete?: string; // on, off
+    choices?: string[];
   };
 }
 
@@ -84,74 +86,82 @@ export interface TableProperties extends ComponentProperties {
   };
 }
 
-// ! These type guards were implemented by Copilot.
-
 export function isImageProperties(
   properties: ComponentProperties | undefined | unknown
 ): properties is ImageProperties {
-  if (typeof properties !== 'object' || properties === null) return false;
-  const obj = properties as Record<string, unknown>;
-  const image = obj.image;
-  if (typeof image !== 'object' || image === null) return false;
-  const img = image as Record<string, unknown>;
-  // require at least one distinguishing field to be the expected primitive
-  return (
-    typeof img.name === 'string' ||
-    typeof img.location === 'string' ||
-    typeof img.placeholder === 'string' ||
-    img.data !== undefined
-  );
-}
+  if (!properties) {
+    return false;
+  }
 
-export function isLabelProperties(
-  properties: ComponentProperties | undefined | unknown
-): properties is LabelProperties {
-  if (typeof properties !== 'object' || properties === null) return false;
-  const obj = properties as Record<string, unknown>;
-  const label = obj.label;
-  if (typeof label !== 'object' || label === null) return false;
-  const lbl = label as Record<string, unknown>;
-  // check at least one expected label field has the right primitive type
-  return (
-    typeof lbl.color === 'string' ||
-    typeof lbl.backgroundColor === 'string' ||
-    typeof lbl.fontFamily === 'string' ||
-    typeof lbl.fontSize === 'string' ||
-    typeof lbl.fontSize === 'number'
-  );
+  const imageProperties = properties as ImageProperties;
+
+  if (!('image' in imageProperties)) {
+    return false;
+  }
+
+  if (!('name' in imageProperties.image)) {
+    return false;
+  }
+
+  return true;
 }
 
 export function isInputProperties(
   properties: ComponentProperties | undefined | unknown
 ): properties is InputProperties {
-  if (typeof properties !== 'object' || properties === null) return false;
-  const obj = properties as Record<string, unknown>;
-  const input = obj.input;
-  if (typeof input !== 'object' || input === null) return false;
-  const inp = input as Record<string, unknown>;
-  // ensure there is at least a type string (HTMLInputType) or a placeholder/value
-  return (
-    typeof inp.type === 'string' ||
-    typeof inp.placeholder === 'string' ||
-    typeof inp.value === 'string'
-  );
+  if (!properties) {
+    return false;
+  }
+
+  const inputProperties = properties as InputProperties;
+
+  if (!('input' in inputProperties)) {
+    return false;
+  }
+
+  if (!('type' in inputProperties.input)) {
+    return false;
+  }
+
+  return true;
+}
+
+export function isLabelProperties(
+  properties: ComponentProperties | undefined | unknown
+): properties is LabelProperties {
+  if (!properties) {
+    return false;
+  }
+
+  const labelProperties = properties as LabelProperties;
+
+  if (!('label' in labelProperties)) {
+    return false;
+  }
+
+  if (!('text' in labelProperties.label)) {
+    return false;
+  }
+
+  return true;
 }
 
 export function isTableProperties(
   properties: ComponentProperties | undefined | unknown
 ): properties is TableProperties {
-  if (typeof properties !== 'object' || properties === null) return false;
-  const obj = properties as Record<string, unknown>;
-  const table = obj.table;
-  if (typeof table !== 'object' || table === null) return false;
-  const tbl = table as Record<string, unknown>;
-  if (!Array.isArray(tbl.columns)) return false;
-  // ensure columns contain objects resembling ComponentProperties (name/type)
-  // note: technically these should be InputProperties, but InputProperties extend ComponentProperties
-  const cols = tbl.columns as unknown[];
-  if (cols.length === 0) return true; // empty columns still OK
-  const first = cols[0];
-  if (typeof first !== 'object' || first === null) return false;
-  const col0 = first as Record<string, unknown>;
-  return typeof col0.name === 'string' && typeof col0.type === 'string';
+  if (!properties) {
+    return false;
+  }
+
+  const tableProperties = properties as TableProperties;
+
+  if (!('table' in tableProperties)) {
+    return false;
+  }
+
+  if (!('columns' in tableProperties.table)) {
+    return false;
+  }
+
+  return true;
 }

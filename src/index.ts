@@ -10,6 +10,7 @@ import listFormRoutes from './api/form/list.js';
 import formAnswerRoutes from './api/form/answer/[formID].js';
 import formClearRoutes from './api/form/clear/[formID].js';
 import formDeleteRoutes from './api/form/delete/[formID].js';
+import formEditRoutes from './api/form/edit/[formID].js';
 import inputCreateRoutes from './api/form/inputs/create.js';
 import viewFormResponsesRoutes from './api/form/[formID]/answers.js';
 import 'dotenv/config';
@@ -40,6 +41,7 @@ fastify.register(listFormRoutes);
 fastify.register(formAnswerRoutes);
 fastify.register(formClearRoutes, { prefix: '/api/form' });
 fastify.register(formDeleteRoutes);
+fastify.register(formEditRoutes);
 fastify.register(inputCreateRoutes);
 fastify.register(viewFormResponsesRoutes);
 
@@ -72,6 +74,10 @@ fastify.addHook(
     }
   }
 );
+
+fastify.get('/healthcheck', (request: FastifyRequest, reply: FastifyReply) => {
+  return reply.code(200).send('OK');
+});
 
 const start = async () => {
   try {
