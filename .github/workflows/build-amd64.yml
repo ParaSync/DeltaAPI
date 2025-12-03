@@ -70,14 +70,6 @@ jobs:
           ssh ${{ secrets.DEPLOY_REMOTE_USER }}@${{ secrets.DEPLOY_REMOTE_HOST }} << 'EOF'
             cd /home/github
 
-            # Load remote environment variables
-            if [ -f ~/.deploy_env ]; then
-              export $(grep -v '^#' ~/.deploy_env | xargs)
-            else
-              echo "ERROR: ~/.deploy_env not found!" >&2
-              exit 1
-            fi
-
             # Login to GHCR
             echo "$DOCKER_PAT" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 
