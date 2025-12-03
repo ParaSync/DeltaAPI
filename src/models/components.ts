@@ -57,7 +57,7 @@ export interface LabelProperties extends ComponentProperties {
 
 export interface InputProperties extends ComponentProperties {
   input: {
-    type: HTMLInputType | 'select';
+    type: HTMLInputType | 'select' | 'textarea';
     placeholder?: string;
     value?: string;
     maxLength?: number;
