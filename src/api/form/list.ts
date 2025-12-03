@@ -263,7 +263,7 @@ async function listFormRoutes(fastify: FastifyInstance) {
 
     try {
       const result = await pool.query(
-        `SELECT f.title, c.type, c.properties,
+        `SELECT f.title, c.type, c.properties
         FROM forms f
         LEFT JOIN components c ON c.form_id = f.id
         WHERE f.id = $1 
