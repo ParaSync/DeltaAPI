@@ -71,7 +71,7 @@ jobs:
             cd /home/github
 
             # Login to GHCR
-            echo "$DOCKER_PAT" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            echo "$DOCKER_PAT" | docker login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
 
             # Pull updated image (no rebuild)
             sudo docker compose -f docker-compose.backend.develop.yml pull
