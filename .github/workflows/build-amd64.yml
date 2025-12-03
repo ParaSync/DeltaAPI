@@ -1,4 +1,4 @@
-name: Build Docker Container (AMD64)
+name: Build Docker Container (AMD64) and Deploy
 on:
   workflow_run:
     workflows: ["Tests"]
@@ -8,17 +8,13 @@ on:
 
 
 jobs:
-  on-success:
+  build:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     outputs:
       upstream_branch: ${{ github.event.workflow_run.head_branch }}
     steps:
       - uses: actions/checkout@v5
-      - name: Dump context
-        env:
-          EVENT_CONTEXT: ${{ toJson(github.event) }}
-        run: echo "$EVENT_CONTEXT"
       -
         name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -39,3 +35,59 @@ jobs:
           context: .
           push: true
           tags: ghcr.io/parasync/delta-backend:${{ github.event.workflow_run.head_branch }}-amd64
+
+  deploy-dev:
+    runs-on: self-hosted
+    if: >
+      github.event.workflow_run.head_branch == 'develop'
+    needs: build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+      - name: Setup SSH keys
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+
+      - name: Add remote host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan ${{ secrets.DEPLOY_REMOTE_HOST }} >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Upload docker-compose.yml
+        run: |
+          scp docker-compose.dev.yml \
+            ${{ secrets.DEPLOY_REMOTE_USER }}@${{ secrets.DEPLOY_REMOTE_HOST }}:/home/github/docker-compose.backend.develop.yml
+
+      - name: Deploy container via SSH
+        run: |
+          ssh ${{ secrets.DEPLOY_REMOTE_USER }}@${{ secrets.DEPLOY_REMOTE_HOST }} << 'EOF'
+            cd /home/github
+
+            # Load remote environment variables
+            if [ -f ~/.deploy_env ]; then
+              export $(grep -v '^#' ~/.deploy_env | xargs)
+            else
+              echo "ERROR: ~/.deploy_env not found!" >&2
+              exit 1
+            fi
+
+            # Login to GHCR
+            echo "$DOCKER_PAT" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+            # Pull updated image (no rebuild)
+            docker compose -f docker-compose.backend.develop.yml pull
+
+            # Restart using the new image
+            docker compose -f docker-compose.backend.develop.yml down
+            docker compose -f docker-compose.backend.develop.yml up -d
+          EOF
+        env:
+          GHCR_USER: ${{ secrets.GHCR_USER }}
+          DOCKER_PAT: ${{ secrets.DOCKER_PAT }}
