@@ -3,17 +3,20 @@ name: Deploy Container via SSH (Develop)
 on:
   workflow_run:
     workflows: ["Build Docker Container (AMD64)"]
-    branches: [develop]
     types: 
       - completed
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: >
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'develop'
+    #if: >
+    #  github.event.workflow_run.conclusion == 'success' &&
+    #  github.event.workflow_run.head_branch == 'develop'
     steps:
+      - name: Dump context
+        env:
+          EVENT_CONTEXT: ${{ toJson(github.event) }}
+        run: echo "$EVENT_CONTEXT"
       - name: Checkout repository
         uses: actions/checkout@v4
       - name: Connect to Tailscale
