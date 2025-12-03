@@ -62,14 +62,15 @@ jobs:
 
       - name: Upload docker-compose.yml
         run: |
+          ssh ${{ secrets.DEPLOY_REMOTE_USER }}@${{ secrets.DEPLOY_REMOTE_HOST }} 'mkdir -p /home/github/backend'
           scp docker-compose.dev.yml \
-            ${{ secrets.DEPLOY_REMOTE_USER }}@${{ secrets.DEPLOY_REMOTE_HOST }}:/home/github/docker-compose.backend.develop.yml
+            ${{ secrets.DEPLOY_REMOTE_USER }}@${{ secrets.DEPLOY_REMOTE_HOST }}:/home/github/backend/docker-compose.backend.develop.yml
 
       - name: Deploy container via SSH
         run: |
           ssh ${{ secrets.DEPLOY_REMOTE_USER }}@${{ secrets.DEPLOY_REMOTE_HOST }} << 'EOF'
             set -x
-            cd /home/github
+            cd /home/github/backend
 
             # Pull updated image (no rebuild)
             sudo docker compose -f docker-compose.backend.develop.yml pull
