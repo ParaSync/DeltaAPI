@@ -1,7 +1,7 @@
 // TODO: Sync with frontend's schemas for the various component types
 // TODO: once they implement them. For now these would act as placeholders
 
-export type ComponentType = 'image' | 'label' | 'input' | 'table';
+export type ComponentType = 'image' | 'label' | 'input' | 'table' | 'heading';
 
 export type HTMLInputType =
   | 'text'

@@ -46,6 +46,7 @@ async function editFormRoutes(fastify: FastifyInstance) {
       }
     }
   );
+
   fastify.post(
     '/api/form/edit/rename/:formId',
     async (request: FastifyRequest<{ Body: BodyType }>, reply: FastifyReply) => {

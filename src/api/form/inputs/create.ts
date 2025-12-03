@@ -35,7 +35,7 @@ type ValidationResult =
       payload: ReplyPayload;
     };
 
-const ALLOWED_TYPES: ComponentType[] = ['image', 'label', 'input', 'table'];
+const ALLOWED_TYPES: ComponentType[] = ['image', 'label', 'input', 'table', 'heading'];
 const DEFAULT_TYPE: ComponentType = 'input';
 
 const sendReply = (reply: FastifyReply, status: number, payload: ReplyPayload) =>
@@ -128,7 +128,10 @@ async function inputCreateRoutes(fastify: FastifyInstance) {
     const { formId, type, name, properties } = validation.value;
 
     if (!pool) {
-      return sendReply(reply, 500, { message: 'Database connection is not available.', value: null });
+      return sendReply(reply, 500, {
+        message: 'Database connection is not available.',
+        value: null,
+      });
     }
 
     const client = await pool.connect();
