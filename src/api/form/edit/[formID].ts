@@ -69,6 +69,29 @@ async function editFormRoutes(fastify: FastifyInstance) {
       }
     }
   );
+
+  fastify.get(
+    '/api/form/edit/publish/:formId',
+    async (request: FastifyRequest<{ Body: BodyType }>, reply: FastifyReply) => {
+      const replyPayload: ReplyPayload = { message: '', value: '' };
+
+      const { formId } = request.params as { formId: string };
+
+      const queryText = `UPDATE forms SET status = 'published' WHERE id = $1`;
+      const values = [formId];
+
+      try {
+        const result = await pool.query(queryText, values);
+        replyPayload.message = 'Form published successfully';
+        replyPayload.value = result;
+        return reply.status(200).send(replyPayload);
+      } catch (error: unknown) {
+        replyPayload.message = 'An error occurred';
+        replyPayload.value = error;
+        return reply.status(500).send(replyPayload);
+      }
+    }
+  );
 }
 
 export default editFormRoutes;

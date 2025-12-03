@@ -201,12 +201,12 @@ async function listFormRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.get('/api/form/list/:userId', async (req, reply) => {
+  fastify.get('/api/form/list/all/:userId', async (req, reply) => {
     const { userId } = req.params as { userId: string };
 
     try {
       const result = await pool.query(
-        `SELECT id, title, user_id, created_at
+        `SELECT id, title, user_id, created_at, status
         FROM forms
         WHERE user_id = $1
         ORDER BY created_at DESC`,
@@ -220,6 +220,87 @@ async function listFormRoutes(fastify: FastifyInstance) {
     } catch (err) {
       return reply.status(500).send({
         message: 'Failed to load forms.',
+        value: err instanceof Error ? err.message : String(err),
+      });
+    }
+  });
+
+  fastify.get('/api/form/list/published/:userId', async (req, reply) => {
+    const { userId } = req.params as { userId: string };
+
+    try {
+      const result = await pool.query(
+        `SELECT 
+          f.id,
+          f.title,
+          f.user_id,
+          f.created_at,
+          f.status,
+          COUNT(s.id) AS responses
+        FROM forms f
+        LEFT JOIN submissions s ON s.form_id = f.id
+        WHERE f.status = 'published'
+          AND f.user_id = $1
+        GROUP BY f.id
+        ORDER BY f.created_at DESC;`,
+        [userId]
+      );
+
+      return reply.send({
+        message: 'Forms retrieved successfully.',
+        value: result.rows,
+      });
+    } catch (err) {
+      return reply.status(500).send({
+        message: 'Failed to load forms.',
+        value: err instanceof Error ? err.message : String(err),
+      });
+    }
+  });
+
+  fastify.get('/api/form/fetch/:formId', async (req, reply) => {
+    const { formId } = req.params as { formId: string };
+
+    try {
+      const result = await pool.query(
+        `SELECT c.type, c.properties
+        FROM forms f
+        LEFT JOIN components c ON c.form_id = f.id
+        WHERE f.id = $1 
+        ORDER BY (c.properties->>'order')::int`,
+        [formId]
+      );
+
+      return reply.send({
+        message: `Form ${formId} retrieved successfully.`,
+        value: result.rows,
+      });
+    } catch (err) {
+      return reply.status(500).send({
+        message: `Failed to load form ${formId}.`,
+        value: err instanceof Error ? err.message : String(err),
+      });
+    }
+  });
+
+  fastify.get('/api/form/answered/:userId', async (req, reply) => {
+    const { userId } = req.params as { userId: string };
+
+    try {
+      const result = await pool.query(
+        `SELECT COUNT(*) AS total_answered
+        FROM submissions
+        WHERE user_id = $1`,
+        [userId]
+      );
+
+      return reply.send({
+        message: `Answered forms by ${userId} retrieved successfully.`,
+        value: result.rows[0].total_answered,
+      });
+    } catch (err) {
+      return reply.status(500).send({
+        message: `Failed to load form ${userId}.`,
         value: err instanceof Error ? err.message : String(err),
       });
     }
