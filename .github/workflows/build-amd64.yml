@@ -74,11 +74,11 @@ jobs:
             echo "$DOCKER_PAT" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 
             # Pull updated image (no rebuild)
-            docker compose -f docker-compose.backend.develop.yml pull
+            sudo docker compose -f docker-compose.backend.develop.yml pull
 
             # Restart using the new image
-            docker compose -f docker-compose.backend.develop.yml down
-            docker compose -f docker-compose.backend.develop.yml up -d
+            sudo docker compose -f docker-compose.backend.develop.yml down
+            sudo docker compose -f docker-compose.backend.develop.yml up -d
           EOF
         env:
           GHCR_USER: ${{ secrets.GHCR_USER }}
