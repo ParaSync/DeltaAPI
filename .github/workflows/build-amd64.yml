@@ -68,6 +68,7 @@ jobs:
       - name: Deploy container via SSH
         run: |
           ssh ${{ secrets.DEPLOY_REMOTE_USER }}@${{ secrets.DEPLOY_REMOTE_HOST }} << 'EOF'
+            set -x
             cd /home/github
 
             # Login to GHCR
