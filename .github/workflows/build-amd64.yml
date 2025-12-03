@@ -62,16 +62,15 @@ jobs:
 
       - name: Upload docker-compose.yml
         run: |
+          ssh ${{ secrets.DEPLOY_REMOTE_USER }}@${{ secrets.DEPLOY_REMOTE_HOST }} 'mkdir -p /home/github/backend'
           scp docker-compose.dev.yml \
-            ${{ secrets.DEPLOY_REMOTE_USER }}@${{ secrets.DEPLOY_REMOTE_HOST }}:/home/github/docker-compose.backend.develop.yml
+            ${{ secrets.DEPLOY_REMOTE_USER }}@${{ secrets.DEPLOY_REMOTE_HOST }}:/home/github/backend/docker-compose.backend.develop.yml
 
       - name: Deploy container via SSH
         run: |
           ssh ${{ secrets.DEPLOY_REMOTE_USER }}@${{ secrets.DEPLOY_REMOTE_HOST }} << 'EOF'
-            cd /home/github
-
-            # Login to GHCR
-            echo "$DOCKER_PAT" | docker login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
+            set -x
+            cd /home/github/backend
 
             # Pull updated image (no rebuild)
             sudo docker compose -f docker-compose.backend.develop.yml pull
@@ -79,6 +78,7 @@ jobs:
             # Restart using the new image
             sudo docker compose -f docker-compose.backend.develop.yml down
             sudo docker compose -f docker-compose.backend.develop.yml up -d
+            exit
           EOF
         env:
           GHCR_USER: ${{ secrets.GHCR_USER }}
