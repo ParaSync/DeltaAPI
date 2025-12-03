@@ -71,15 +71,13 @@ jobs:
             set -x
             cd /home/github
 
-            # Login to GHCR
-            echo "$DOCKER_PAT" | docker login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
-
             # Pull updated image (no rebuild)
             sudo docker compose -f docker-compose.backend.develop.yml pull
 
             # Restart using the new image
             sudo docker compose -f docker-compose.backend.develop.yml down
             sudo docker compose -f docker-compose.backend.develop.yml up -d
+            exit
           EOF
         env:
           GHCR_USER: ${{ secrets.GHCR_USER }}
