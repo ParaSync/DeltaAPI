@@ -7,3 +7,4 @@ services:
       - "3000:3000"   # Your backend API port
     env_file:
       - ~/.deploy_env 
+ 
