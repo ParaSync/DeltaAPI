@@ -53,10 +53,13 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3 # Use the tmate action
+
       - name: Add remote host to known_hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan ${{ secrets.DEPLOY_REMOTE_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan ${{ secrets.DEPLOY_REMOTE_HOST }} >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
       - name: Upload docker-compose.yml
