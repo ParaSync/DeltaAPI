@@ -44,8 +44,7 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3 # Use the tmate action
+
       - name: Connect to Tailscale
         uses: tailscale/github-action@v4
         with:
@@ -54,7 +53,6 @@ jobs:
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
-
 
       - name: Add remote host to known_hosts
         run: |
